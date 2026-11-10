@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>우리 회사 첫 페이지</title>
+
+<!-- ★ 옷(CSS): 색 · 크기 · 모양 -->
+<style>
+  body   { font-family: "Malgun Gothic", sans-serif; background: #F6F8F5; text-align: center; padding: 40px 16px; }
+  h1     { color: #3E7D3A; font-size: 44px; }
+  p      { font-size: 20px; }
+  button { font-size: 20px; padding: 12px 24px; border: 0; border-radius: 12px; background: #3E7D3A; color: white; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>매실한입</h1>
+<p>광양 매실을 아침에 따서 당일 보냅니다.</p>
+<button id="btn">인사말 보기</button>
+<p id="msg"></p>
+
+<!-- ★ 근육(JavaScript): 버튼을 누르면 일어나는 일 -->
+<script>
+  let count = 0;                                     // 몇 번 눌렀는지 기억하는 상자
+  const btn = document.getElementById("btn");        // 버튼을 찾아서
+  const msg = document.getElementById("msg");        // 글자를 적을 자리를 찾아서
+  btn.onclick = function () {                        // 버튼을 누르면 ↓ 이 일을 해라
+    count = count + 1;
+    const now = new Date();
+    msg.textContent = "안녕하세요! 지금은 " + now.getHours() + "시 " + now.getMinutes() + "분, " + count + "번째 방문이시네요.";
+  };
+</script>
+</body>
+</html>
