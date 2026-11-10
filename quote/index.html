@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1A4AAD">
+  <meta name="description" content="제이케어랩의 간편한 거래명세서 만들기. 거래 내용을 입력하고 A4 한 장으로 인쇄하거나 PDF로 저장하세요.">
+  <title>거래명세서 만들기 · 제이케어랩</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>제이케어랩</span>
+      </div>
+      <span class="header-label">우리의 간편한 문서 도구</span>
+    </header>
+
+    <main class="main-content">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow"><span aria-hidden="true"></span>작은 수고를 덜어 드립니다</p>
+        <h1 id="page-title">거래명세서 만들기</h1>
+        <p class="intro-description">거래 내용을 채워 주세요.<br class="mobile-break"> 계산과 정리는 맡겨 주세요.</p>
+      </section>
+
+      <noscript><p class="notice">자동 계산과 저장을 사용하시려면 브라우저 설정에서 자바스크립트(화면의 자동 기능)를 켜 주세요.</p></noscript>
+
+      <div class="workspace">
+        <form id="statement-form" class="document-card" autocomplete="off">
+          <div class="document-heading">
+            <div>
+              <span class="document-tag">거래 문서</span>
+              <h2>거래명세서</h2>
+            </div>
+            <label class="date-field" for="statement-date">
+              <span>작성일</span>
+              <input id="statement-date" type="date" data-field="date" aria-label="작성일">
+            </label>
+          </div>
+
+          <section class="parties" aria-label="받는 곳과 보내는 곳">
+            <div class="party-card recipient-card">
+              <h3><span class="party-symbol" aria-hidden="true">↙</span> 받는 곳</h3>
+              <label for="recipient-name">기관·회사명</label>
+              <input id="recipient-name" data-field="recipientName" type="text" maxlength="60" placeholder="받는 곳을 입력해 주세요">
+              <label for="recipient-contact">담당자·연락처</label>
+              <input id="recipient-contact" data-field="recipientContact" type="text" maxlength="80" placeholder="예: 이○○ · 010-0000-0002">
+              <label for="recipient-address">주소 <span class="optional">(선택)</span></label>
+              <input id="recipient-address" data-field="recipientAddress" type="text" maxlength="100" placeholder="주소를 입력해 주세요">
+            </div>
+            <div class="party-card sender-card">
+              <h3><span class="party-symbol" aria-hidden="true">↗</span> 보내는 곳</h3>
+              <label for="sender-name">기관·회사명</label>
+              <input id="sender-name" data-field="senderName" type="text" maxlength="60" placeholder="보내는 곳을 입력해 주세요">
+              <label for="sender-contact">담당자·연락처</label>
+              <input id="sender-contact" data-field="senderContact" type="text" maxlength="80" placeholder="예: 김○○ · 010-0000-0001">
+              <label for="sender-address">주소 <span class="optional">(선택)</span></label>
+              <input id="sender-address" data-field="senderAddress" type="text" maxlength="100" placeholder="주소를 입력해 주세요">
+            </div>
+          </section>
+
+          <section class="items-section" aria-labelledby="items-title">
+            <div class="section-heading">
+              <h3 id="items-title">거래 품목</h3>
+              <span class="section-note">단가는 부가세 별도로 입력해 주세요</span>
+            </div>
+            <div class="item-headings" aria-hidden="true">
+              <span>품목</span><span>수량</span><span>단가</span><span>금액</span><span>삭제</span>
+            </div>
+            <div id="item-list"></div>
+            <div id="empty-message" class="empty-message" hidden>
+              <p>아직 입력한 품목이 없습니다.</p>
+              <p>아래 ‘품목 추가’를 눌러 주세요.</p>
+            </div>
+            <p id="number-message" class="number-message" role="status" hidden></p>
+            <button id="add-item" class="add-button" type="button">
+              <span class="plus-icon" aria-hidden="true">＋</span> 품목 추가
+            </button>
+            <div class="document-totals" aria-label="공급가액과 부가세 계산">
+              <div class="amount-line"><span>공급가액</span><output id="document-subtotal">0원</output></div>
+              <div class="amount-line"><span>부가세 (10%)</span><output id="document-vat">0원</output></div>
+              <div class="document-total">
+                <span>최종 합계</span>
+                <output id="document-total">0원</output>
+              </div>
+            </div>
+            <p class="tax-note">공급가액은 세금을 더하기 전 금액입니다. 부가세는 공급가액의 10%로 계산하며, 원 미만은 버립니다.</p>
+          </section>
+
+          <div class="memo-field">
+            <label for="memo">메모 <span class="optional">(선택)</span></label>
+            <textarea id="memo" data-field="memo" rows="2" maxlength="200" placeholder="추가로 전하실 내용을 적어 주세요."></textarea>
+          </div>
+
+          <!-- 인쇄한 뒤 도장을 찍거나 손으로 서명하는 빈 자리입니다. -->
+          <section class="signature-section" aria-labelledby="signature-title">
+            <div class="signature-description">
+              <h3 id="signature-title">도장 · 서명</h3>
+              <p>인쇄 후 도장을 찍거나 서명해 주세요.</p>
+            </div>
+            <div class="signature-box" role="group" aria-label="도장 또는 서명을 위한 빈 자리"><span>(인 또는 서명)</span></div>
+          </section>
+        </form>
+
+        <aside class="sidebar" aria-label="합계와 인쇄 안내">
+          <section class="summary-card" aria-labelledby="summary-title">
+            <div class="summary-topline">
+              <h2 id="summary-title">최종 합계</h2>
+              <span class="summary-symbol" aria-hidden="true">₩</span>
+            </div>
+            <p id="summary-total" class="summary-total" aria-live="polite" aria-atomic="true">0원</p>
+            <div class="summary-breakdown">
+              <div class="amount-line"><span>공급가액</span><span id="summary-subtotal">0원</span></div>
+              <div class="amount-line"><span>부가세 (10%)</span><span id="summary-vat">0원</span></div>
+            </div>
+            <div class="summary-detail"><span>등록된 품목</span><span id="item-count">0개</span></div>
+            <p class="summary-description">부가세를 포함한 최종 금액입니다.</p>
+          </section>
+
+          <div class="print-card">
+            <button id="print-button" class="print-button" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6zM17 12h2"/></svg>
+              인쇄 · PDF
+            </button>
+            <p>인쇄 창에서 ‘PDF로 저장’을 선택하시면 파일로 보관하실 수 있습니다.</p>
+            <div class="print-note"><span aria-hidden="true">✓</span><span>버튼 없이 서류만<br>A4 한 장에 맞춰 드립니다.</span></div>
+            <p class="fit-note">품목이 많으면 한 장에 맞추기 위해 인쇄 글자가 작아집니다.</p>
+          </div>
+
+          <section class="save-card" aria-labelledby="save-title">
+            <h2 id="save-title"><span id="save-dot" class="save-dot" aria-hidden="true"></span>자동 저장</h2>
+            <p id="save-status" role="status" aria-live="polite">저장된 내용을 확인하고 있습니다.</p>
+            <p class="save-description">같은 기기와 브라우저에서 다시 여시면 이어서 작성하실 수 있습니다.</p>
+          </section>
+
+          <p class="example-note">처음 표시된 받는 곳·담당자·연락처·품목은 모두 가상 예시입니다. 실제 내용으로 바꿔 주세요.</p>
+        </aside>
+      </div>
+
+      <footer class="site-footer"><span class="footer-line" aria-hidden="true"></span>교육과 연구, 현장과 함께하는 제이케어랩</footer>
+      <p id="action-status" class="visually-hidden" role="status" aria-live="polite"></p>
+    </main>
+  </div>
+
+  <!-- 인쇄할 때는 입력 화면 대신 아래의 서류만 보여 줍니다. -->
+  <div id="print-area" class="print-area" aria-hidden="true">
+    <article id="print-paper" class="print-paper">
+      <header class="paper-header">
+        <div><p class="paper-brand">제이케어랩</p><h1>거래명세서</h1></div>
+        <p class="paper-date">작성일 <span id="print-date"></span></p>
+      </header>
+      <div class="paper-parties">
+        <section><h2>받는 곳</h2><p id="print-recipient-name" class="paper-party-name"></p><p id="print-recipient-contact"></p><p id="print-recipient-address"></p></section>
+        <section><h2>보내는 곳</h2><p id="print-sender-name" class="paper-party-name"></p><p id="print-sender-contact"></p><p id="print-sender-address"></p></section>
+      </div>
+      <p class="paper-intro">아래와 같이 거래 내역을 안내드립니다. 단가와 품목 금액은 부가세 별도입니다.</p>
+      <table class="paper-table">
+        <colgroup><col class="paper-col-name"><col class="paper-col-quantity"><col class="paper-col-price"><col class="paper-col-amount"></colgroup>
+        <thead><tr><th scope="col">품목</th><th scope="col">수량</th><th scope="col">단가</th><th scope="col">금액</th></tr></thead>
+        <tbody id="print-items"></tbody>
+      </table>
+      <div class="paper-breakdown">
+        <div><span>공급가액</span><span id="print-subtotal"></span></div>
+        <div><span>부가세 (10%)</span><span id="print-vat"></span></div>
+      </div>
+      <div class="paper-total"><strong>최종 합계</strong><strong id="print-total"></strong></div>
+      <p class="paper-tax-note">부가세는 전체 공급가액의 10%이며, 원 미만은 버립니다.</p>
+      <section id="print-memo-section" class="paper-memo"><h2>메모</h2><p id="print-memo"></p></section>
+      <!-- 도장 자리도 서류 높이에 포함되어 A4 한 장에 함께 맞춰집니다. -->
+      <section class="paper-signature" aria-label="도장 또는 서명 자리">
+        <div class="paper-signature-block">
+          <h2>도장 · 서명</h2>
+          <div class="paper-signature-box"><span>(인 또는 서명)</span></div>
+        </div>
+      </section>
+      <footer class="paper-footer">위와 같이 거래 내역을 확인합니다.</footer>
+    </article>
+  </div>
+
+  <!-- 품목 한 줄의 모양입니다. 추가 버튼을 누를 때마다 복사합니다. -->
+  <template id="item-template">
+    <div class="item-row">
+      <div class="item-name-field"><label class="mobile-label">품목</label><input data-item-field="name" type="text" maxlength="100" placeholder="품목을 입력해 주세요"></div>
+      <div class="item-quantity-field"><label class="mobile-label">수량</label><input data-item-field="quantity" type="text" inputmode="numeric" maxlength="15" class="number-input" spellcheck="false"></div>
+      <div class="item-price-field"><label class="mobile-label">단가</label><div class="price-input-wrap"><input data-item-field="price" type="text" inputmode="numeric" maxlength="15" class="number-input" spellcheck="false"><span aria-hidden="true">원</span></div></div>
+      <div class="item-amount-field"><span class="mobile-label">금액</span><output class="item-amount">0원</output></div>
+      <button type="button" class="delete-button">삭제</button>
+    </div>
+  </template>
+</body>
+</html>
