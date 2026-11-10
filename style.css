@@ -1,0 +1,73 @@
+:root { color-scheme: light; --blue: #1a4aad; --blue-dark: #143c8d; --mint: #65c2b1; --ink: #23324b; --muted: #59677a; --line: #dbe3ec; }
+/* 기존 앱과 같은 글꼴과 색을 사용합니다. */
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); background: #f4f7fa; font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 18px; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
+h1, h2, h3, p { margin: 0; }
+a { color: var(--blue); text-underline-offset: 5px; }
+a:focus-visible { outline: 3px solid var(--blue); outline-offset: 5px; }
+[hidden] { display: none !important; }
+.page-shell { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+.site-header { min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 12px; min-height: 48px; color: var(--blue); font-size: 24px; font-weight: 800; letter-spacing: -.6px; text-decoration: none; }
+.brand-mark { width: 42px; height: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 4px; border-radius: 13px; background: var(--blue); transform: rotate(-4deg); }
+.brand-mark i { width: 5px; height: 19px; border-radius: 3px; background: white; }
+.brand-mark i:nth-child(2) { height: 27px; background: var(--mint); }
+.brand-mark i:nth-child(3) { height: 13px; }
+.header-label { color: var(--muted); }
+.intro { padding: 54px 0 44px; }
+.eyebrow { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--blue); font-weight: 700; }
+.eyebrow > span { width: 9px; height: 9px; border-radius: 50%; background: var(--mint); }
+h1 { font-size: clamp(34px, 4vw, 50px); line-height: 1.32; letter-spacing: -1.6px; }
+.intro-description { margin-top: 20px; color: var(--muted); font-size: 20px; line-height: 1.75; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.section-heading h2 { font-size: 24px; letter-spacing: -.6px; }
+.app-count { color: var(--muted); }
+.app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.app-card { display: flex; flex-direction: column; min-width: 0; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: white; box-shadow: 0 6px 28px #23324b05; }
+.card-topline { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.app-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 58px; height: 58px; border-radius: 17px; color: var(--blue); background: #edf2fc; }
+.app-icon svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.message-icon { background: #e6f5ef; color: #266658; }
+.check-icon { background: #eef1fb; color: #455b9b; }
+.card-category { color: var(--muted); font-weight: 700; }
+.app-card h3 { font-size: 25px; line-height: 1.45; letter-spacing: -.9px; }
+.card-description { margin-top: 14px; color: var(--muted); }
+.feature-list { display: grid; gap: 8px; padding: 0; margin: 24px 0 28px; list-style: none; }
+.feature-list li { display: flex; align-items: baseline; gap: 9px; }
+.feature-list li::before { content: "✓"; color: #287362; font-weight: 700; }
+.open-button { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; margin-top: auto; padding: 12px 16px; border-radius: 12px; background: var(--blue); color: white; font-size: 18px; font-weight: 700; text-decoration: none; transition: background-color .15s; touch-action: manipulation; }
+.open-button:hover { background: var(--blue-dark); }
+.open-button > span { font-size: 23px; line-height: 1; }
+.recent-app { margin-top: 22px; color: var(--muted); }
+.recent-app a { display: inline-flex; align-items: center; min-height: 48px; font-weight: 700; }
+.save-note { display: flex; align-items: flex-start; gap: 18px; margin-top: 32px; padding: 26px 28px; border: 1px solid #cde5dc; border-radius: 20px; background: #eaf5f0; }
+.note-symbol { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; color: #245d4d; background: #cfe9df; font-weight: 800; }
+.save-note h2 { color: #245d4d; font-size: 20px; }
+.save-note p { margin-top: 8px; color: #4d665d; }
+.site-footer { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 38px 0; color: var(--muted); text-align: center; }
+.site-footer > span { width: 25px; height: 3px; border-radius: 3px; flex-shrink: 0; background: var(--mint); }
+/* 휴대폰에서는 앱을 한 줄에 하나씩 넉넉하게 보여 줍니다. */
+@media (max-width: 1050px) {
+  .app-grid { grid-template-columns: 1fr; }
+  .app-card { display: grid; grid-template-columns: minmax(0, 1fr) 250px; column-gap: 28px; }
+  .card-topline { grid-column: 1 / -1; margin-bottom: 18px; }
+  .card-description { grid-column: 1; }
+  .feature-list { grid-column: 2; grid-row: 2 / 4; margin: 0; align-content: start; }
+  .open-button { grid-column: 1 / -1; margin-top: 24px; }
+}
+@media (max-width: 620px) {
+  .page-shell { padding: 0 20px; }
+  .site-header { min-height: 88px; }
+  .header-label { display: none; }
+  .intro { padding: 36px 0; }
+  .desktop-break { display: none; }
+  .app-grid { gap: 18px; }
+  .app-card { display: flex; padding: 24px; }
+  .feature-list { margin: 22px 0 24px; }
+  .open-button { margin-top: auto; }
+  .save-note { padding: 22px; gap: 12px; }
+  .note-symbol { display: none; }
+  .save-note p br { display: none; }
+  .site-footer { align-items: baseline; font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { .open-button { transition: none; } }

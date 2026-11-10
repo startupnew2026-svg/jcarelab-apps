@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="제이케어랩의 거래명세서, 공지·안내 문자 작성기, 점검·체크리스트를 한곳에서 열어 보세요.">
+  <title>앱 목록 | 제이케어랩</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="제이케어랩 앱 목록">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>제이케어랩
+      </a>
+      <span class="header-label">우리 팀의 업무 도구</span>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow"><span aria-hidden="true"></span>제이케어랩 앱 목록</p>
+        <h1 id="page-title">필요한 일을,<br>가볍게 시작하세요.</h1>
+        <p class="intro-description">서류 작성부터 안내 문자, 매일의 점검까지.<br class="desktop-break"> 아래에서 필요한 앱을 골라 주세요.</p>
+      </section>
+      <!-- 같은 폴더 안의 주소를 써서 컴퓨터와 공개 주소에서 모두 열립니다. -->
+      <section class="apps-section" aria-labelledby="apps-title">
+        <div class="section-heading"><h2 id="apps-title">사용할 수 있는 앱</h2><span class="app-count">모두 3개</span></div>
+        <div class="app-grid">
+          <article class="app-card">
+            <div class="card-topline">
+              <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M9 4h10l5 5v19H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M19 4v6h5M12 15h7M12 20h7"/></svg></span>
+              <span class="card-category">서류 작성</span>
+            </div>
+            <h3>거래명세서 만들기</h3>
+            <p class="card-description">품목과 금액을 입력하면 부가세와 합계를 계산해 드립니다.</p>
+            <ul class="feature-list"><li>부가세 10% 자동 계산</li><li>도장 · 서명 자리와 인쇄</li></ul>
+            <a class="open-button" href="./quote/" data-app="quote" aria-label="거래명세서 앱 열기">거래명세서 열기 <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="app-card">
+            <div class="card-topline">
+              <span class="app-icon message-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 5h18a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H14l-7 5v-5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M10 12h12M10 17h8"/></svg></span>
+              <span class="card-category">고객 안내</span>
+            </div>
+            <h3>공지 · 안내 문자 작성기</h3>
+            <p class="card-description">전하고 싶은 내용을 넣으면 정중한 안내 문구로 다듬어 드립니다.</p>
+            <ul class="feature-list"><li>결과 복사 · 최근 기록 5개</li><li>처음 사용 시 팀 코드 입력</li></ul>
+            <a class="open-button" href="./reply/" data-app="reply" aria-label="공지 · 안내 문자 작성기 열기">문자 작성기 열기 <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="app-card">
+            <div class="card-topline">
+              <span class="app-icon check-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="6" width="22" height="23" rx="3"/><path d="M12 6V3h8v3M10 14l2 2 4-4M19 14h3M10 22l2 2 4-4M19 22h3"/></svg></span>
+              <span class="card-category">매일 점검</span>
+            </div>
+            <h3>점검 · 체크리스트</h3>
+            <p class="card-description">오늘 할 일을 하나씩 확인하고 날짜별 점검 기록을 모아 보세요.</p>
+            <ul class="feature-list"><li>매일 점검 · 날짜별 기록</li><li>검색 · 인쇄 · 표 파일 저장</li></ul>
+            <a class="open-button" href="./check/" data-app="check" aria-label="점검 · 체크리스트 열기">체크리스트 열기 <span aria-hidden="true">↗</span></a>
+          </article>
+        </div>
+      </section>
+      <p class="recent-app" id="recent-app" hidden>최근 열어 본 앱: <a id="recent-link"></a></p>
+      <aside class="save-note" aria-labelledby="save-title">
+        <span class="note-symbol" aria-hidden="true">✓</span>
+        <div><h2 id="save-title">입력한 내용은 사용 중인 브라우저에 저장됩니다.</h2>
+          <p>같은 기기와 같은 주소에서 다시 열면 이어서 사용하실 수 있습니다.<br>다른 기기나 다른 주소로 열면 저장된 내용은 함께 옮겨지지 않습니다.</p>
+        </div>
+      </aside>
+    </main>
+    <footer class="site-footer"><span aria-hidden="true"></span>제이케어랩 · 현장의 경험을 더 나은 일상으로</footer>
+  </div>
+</body>
+</html>
