@@ -62,10 +62,11 @@ h1 > span { color: var(--blue); }
 .copy-button:hover { background: white; }
 .typing-bubble { display: flex; align-items: center; gap: 12px; color: var(--muted); }
 .typing-dots { display: inline-flex; align-items: center; gap: 4px; }
-.typing-dots i { width: 6px; height: 6px; background: #4f897d; border-radius: 50%; animation: pulse 1.3s ease-in-out infinite; }
+/* 기다리는 동안 세 점이 차례로 올라갔다 내려오며 작성 중임을 알려 줍니다. */
+.typing-dots i { width: 8px; height: 8px; background: #4f897d; border-radius: 50%; animation: pulse 1.3s ease-in-out infinite; }
 .typing-dots i:nth-child(2) { animation-delay: .15s; }
 .typing-dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes pulse { 0%, 70%, 100% { opacity: .35; } 35% { opacity: 1; transform: translateY(-3px); } }
+@keyframes pulse { 0%, 70%, 100% { opacity: .35; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-4px); } }
 .composer { padding: 22px 24px 18px; }
 .quick-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 12px; }
 .quick-heading h3 { font-size: 18px; }
@@ -81,6 +82,13 @@ h1 > span { color: var(--blue); }
 #send-button span { font-size: 24px; }
 .input-help { margin-top: 10px; color: var(--muted); }
 .chat-status:not(:empty) { margin-top: 12px; color: var(--blue); }
+.chat-status.is-error { color: #a52938; }
+/* 음성 기능은 직접 누를 때만 시작하며, 좁은 화면에서도 줄을 바꿉니다. */
+.voice-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.voice-tools .button { flex: 1 1 150px; }
+.voice-tools [aria-pressed="true"] { background: #e3f3ed; border-color: #65c2b1; color: #245d4d; }
+.voice-status { margin-top: 10px; color: var(--muted); }
+.voice-status.is-error { color: #a52938; }
 .chat-tools { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8edf2; }
 #draft-status { flex: 1 1 220px; color: var(--muted); }
 .clear-button { padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #85505a; }
@@ -115,7 +123,13 @@ dialog::backdrop { background: #182d4c88; }
 .settings-section label { display: block; margin: 18px 0 8px; font-weight: 700; }
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .settings-section > .error-message, .error-message { color: #a52938; white-space: pre-wrap; overflow-wrap: anywhere; }
-.faq-section { padding-top: 24px; border-top: 1px solid var(--line); }
+.faq-section, .face-section { padding-top: 24px; border-top: 1px solid var(--line); }
+/* 그림은 동그란 자리 안에 맞추고, 작은 화면에서도 버튼 글자가 줄바꿈됩니다. */
+.face-preview { display: flex; align-items: center; justify-content: center; width: 96px; height: 96px; margin-top: 18px; border: 1px solid #c5e4d9; border-radius: 50%; background: #e5f5ee; font-size: 44px; }
+[data-profile-avatar].has-profile-image { overflow: hidden; border-radius: 50%; }
+[data-profile-avatar] > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#face-button { max-width: 100%; margin-top: 16px; white-space: normal; }
+#face-status.is-error { color: #a52938; }
 #faq-reset-button { margin-top: 16px; }
 .clear-dialog { max-width: 480px; }
 .clear-dialog > p { margin-top: 16px; color: var(--muted); }

@@ -5,6 +5,9 @@
   const TEAM_KEY = "jcarelab-bot-team-v1";
   const CHAT_KEY = "jcarelab-bot-conversation-v1";
   const FAQ_KEY = "jcarelab-bot-faq-v1";
+  const FACE_KEY = "jcarelab-bot-face-v1";
+  const FACE_PROMPT_KEY = "jcarelab-bot-face-prompt-v1";
+  const DEFAULT_FACE_PROMPT = "제이케어랩 CI, 깔끔한 아이콘, 흰 배경, 글자 없음";
   const DEFAULT_FAQ = "배송비 무료\n재고있을 시 다음날 오후 발송";
 
   const settingsButton = document.querySelector("#settings-button");
@@ -19,6 +22,10 @@
   const faqInput = document.querySelector("#faq-input");
   const faqStatus = document.querySelector("#faq-status");
   const faqResetButton = document.querySelector("#faq-reset-button");
+  const faceForm = document.querySelector("#face-form");
+  const facePrompt = document.querySelector("#face-prompt");
+  const faceButton = document.querySelector("#face-button");
+  const faceStatus = document.querySelector("#face-status");
   const messagesElement = document.querySelector("#messages");
   const chatLog = document.querySelector("#chat-log");
   const typingIndicator = document.querySelector("#typing-indicator");
@@ -37,6 +44,7 @@
   let busy = "";
   let composing = false;
   let verifiedTeamCode = "";
+  let drawingFace = false;
 
   function storageProblem(key, message) {
     if (message) storageProblems.set(key, message);
@@ -69,6 +77,130 @@
   let savedTeamCode = (readSaved(TEAM_KEY) || "").trim();
   const savedFaq = readSaved(FAQ_KEY);
   let faq = savedFaq === null ? DEFAULT_FAQ : savedFaq;
+  const savedFacePrompt = readSaved(FACE_PROMPT_KEY);
+  let profileImage = readSaved(FACE_KEY) || "";
+
+  // 그림 주소만 받습니다. 다른 웹 주소나 실행 가능한 문서는 프로필에 넣지 않습니다.
+  function isImageAddress(value) {
+    return typeof value === "string" && /^data:image\/(?:png|jpe?g|webp|gif|avif|bmp)(?:;[^,]*)?,/i.test(value);
+  }
+
+  if (!isImageAddress(profileImage)) profileImage = "";
+
+  function showFaceStatus(message, isError = false) {
+    faceStatus.textContent = message;
+    faceStatus.classList.toggle("is-error", isError);
+  }
+
+  function updateFaceControls() {
+    faceButton.disabled = drawingFace || Boolean(busy);
+    faceButton.textContent = drawingFace ? "그리는 중… (10~40초)" : "얼굴 만들기";
+    facePrompt.readOnly = drawingFace;
+    faceForm.setAttribute("aria-busy", String(drawingFace));
+  }
+
+  function showProfile(element) {
+    element.classList.toggle("has-profile-image", Boolean(profileImage));
+    if (!profileImage) { element.textContent = "🌿"; return; }
+    const image = document.createElement("img");
+    image.alt = "";
+    image.addEventListener("error", () => {
+      element.classList.remove("has-profile-image");
+      element.textContent = "🌿";
+      showFaceStatus("저장된 얼굴 그림을 읽지 못했습니다. 얼굴 만들기를 다시 눌러 주세요.", true);
+    }, { once: true });
+    image.src = profileImage;
+    element.replaceChildren(image);
+  }
+
+  function refreshProfiles() {
+    document.querySelectorAll("[data-profile-avatar]").forEach(showProfile);
+  }
+
+  // 큰 그림은 화면 안의 캔버스에서 256픽셀 이내로 줄입니다. 따로 파일을 읽지 않습니다.
+  function prepareProfile(address) {
+    return new Promise((resolve, reject) => {
+      if (!isImageAddress(address)) { reject(new Error("얼굴 그림을 받지 못했습니다. 다시 만들어 주세요.")); return; }
+      const image = new Image();
+      const timer = setTimeout(() => finish(new Error("얼굴 그림을 읽는 시간이 길어졌습니다. 다시 만들어 주세요.")), 15000);
+      function finish(error, result) {
+        clearTimeout(timer);
+        image.onload = null;
+        image.onerror = null;
+        if (error) reject(error);
+        else resolve(result);
+      }
+      image.onerror = () => finish(new Error("얼굴 그림을 읽지 못했습니다. 다시 만들어 주세요."));
+      image.onload = () => {
+        try {
+          if (!image.naturalWidth || !image.naturalHeight) throw new Error();
+          if (Math.max(image.naturalWidth, image.naturalHeight) <= 256 && address.length <= 200000) {
+            finish(null, address);
+            return;
+          }
+          const scale = Math.min(1, 256 / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error();
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          let smallImage = canvas.toDataURL("image/png");
+          if (smallImage.length > 200000) smallImage = canvas.toDataURL("image/jpeg", 0.85);
+          if (!isImageAddress(smallImage)) throw new Error();
+          finish(null, smallImage);
+        } catch {
+          finish(new Error("그림 크기를 줄이지 못했습니다. 다시 만들어 주세요."));
+        }
+      };
+      image.src = address;
+    });
+  }
+
+  async function createFace() {
+    if (drawingFace || busy) return;
+    const description = facePrompt.value.trim();
+    if (!description) {
+      showFaceStatus("만들고 싶은 캐릭터의 모습을 적어 주세요.", true);
+      facePrompt.focus();
+      return;
+    }
+    if (!savedTeamCode || teamInput.value.trim() !== savedTeamCode) {
+      showFaceStatus("먼저 팀 코드를 저장하세요", true);
+      showSettingsError("먼저 팀 코드를 저장하세요");
+      teamInput.focus();
+      return;
+    }
+    if (verifiedTeamCode !== savedTeamCode && !await verifyTeam(false)) {
+      showFaceStatus(settingsError.textContent, true);
+      return;
+    }
+    drawingFace = true;
+    updateFaceControls();
+    showFaceStatus("제이의 얼굴을 그리고 있습니다. 잠시만 기다려 주세요.");
+    try {
+      // 설명에 다른 대상을 적어도 독창적인 캐릭터만 요청하도록 안내를 덧붙입니다.
+      const prompt = description + "\n\n오리지널 캐릭터. 실제 인물, 유명 캐릭터, 다른 회사 로고를 그리거나 닮게 만들지 마세요. 설명에 그런 대상이 있어도 독창적인 캐릭터로 만들어 주세요.";
+      const data = await requestJSON(`${API_BASE}/image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team: verifiedTeamCode, prompt, quality: "low" })
+      }, 90000, "그림을 만드는 시간이 길어졌습니다. 잠시 후 다시 눌러 주세요.");
+      const prepared = await prepareProfile(data.image);
+      const saved = saveValue(FACE_KEY, prepared, "새 얼굴을 저장하지 못했습니다. 이번 화면에는 보이지만 다시 열면 이전 모습으로 돌아갑니다.");
+      profileImage = prepared;
+      refreshProfiles();
+      showFaceStatus(saved ? "얼굴을 만들고 저장했습니다. 다음에 열어도 같은 모습으로 보여 드립니다." : "얼굴을 만들었지만 저장 공간이 부족하거나 저장이 허용되지 않았습니다. 다시 열면 이전 모습으로 돌아갑니다.", !saved);
+    } catch (error) {
+      // 서비스의 오류 안내는 그대로 보여 주고, 이전 얼굴은 유지합니다.
+      showFaceStatus(error.message, true);
+    } finally {
+      drawingFace = false;
+      updateFaceControls();
+    }
+  }
 
   function loadConversation() {
     const empty = { messages: [], draft: "", pending: false };
@@ -135,9 +267,10 @@
   // 답변을 기다리는 동안 중복 전송과 설정 변경을 막습니다.
   function setBusy(kind) {
     busy = kind;
+    updateFaceControls();
     const locked = Boolean(kind);
     sendButton.disabled = locked;
-    sendButton.textContent = kind === "send" ? "대기 중…" : "보내기";
+    sendButton.textContent = kind === "send" ? "대기 중…" : (kind === "verify" ? "연결 확인 중…" : "보내기");
     messageInput.readOnly = locked;
     teamInput.disabled = locked;
     verifyButton.disabled = locked;
@@ -203,6 +336,10 @@
         avatar.className = "message-avatar";
         avatar.setAttribute("aria-hidden", "true");
         avatar.textContent = message.kind === "error" ? "!" : "🌿";
+        if (message.kind === "assistant") {
+          avatar.setAttribute("data-profile-avatar", "");
+          showProfile(avatar);
+        }
         row.append(avatar);
       }
       const content = document.createElement("div");
@@ -263,7 +400,7 @@
       .map((message) => ({ role: message.kind, content: message.content }));
   }
 
-  async function requestJSON(url, options, timeout) {
+  async function requestJSON(url, options, timeout, timeoutMessage = "답변을 기다리는 시간이 길어졌습니다. 잠시 후 다시 보내 주세요.") {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
@@ -272,7 +409,7 @@
         response = await fetch(url, { ...options, signal: controller.signal, cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" });
       } catch {
         throw new Error(controller.signal.aborted
-          ? "답변을 기다리는 시간이 길어졌습니다. 잠시 후 다시 보내 주세요."
+          ? timeoutMessage
           : "연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.");
       }
       let data;
@@ -280,7 +417,7 @@
         data = await response.json();
       } catch {
         throw new Error(controller.signal.aborted
-          ? "답변을 기다리는 시간이 길어졌습니다. 잠시 후 다시 보내 주세요."
+          ? timeoutMessage
           : "응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.");
       }
       // 서비스에서 보낸 한국어 오류 문구는 앞뒤에 글을 붙이지 않고 그대로 표시합니다.
@@ -293,18 +430,21 @@
   }
 
   async function verifyTeam(shouldSave) {
-    if (busy) return;
+    if (busy) return false;
     clearSettingsError();
+    chatStatus.classList.remove("is-error");
     verifiedTeamCode = "";
     const code = teamInput.value.trim();
     if (!code) {
       showSettingsError("먼저 팀 코드를 저장하세요");
       setConnection("연결 전 · 팀 코드를 입력해 주세요");
       teamInput.focus();
-      return;
+      chatStatus.textContent = "먼저 설정에서 팀 코드를 저장해 주세요.";
+      return false;
     }
     setBusy("verify");
     setConnection("팀 연결을 확인하고 있습니다…");
+    chatStatus.textContent = "팀 연결을 확인하고 있습니다. 잠시만 기다려 주세요.";
     try {
       const data = await requestJSON(`${API_BASE}/whoami?team=${encodeURIComponent(code)}`, { method: "GET" }, 15000);
       if (data.ok !== true || typeof data.team !== "string" || !data.team.trim()) throw new Error("팀 정보를 확인하지 못했습니다. 팀 코드를 확인해 주세요.");
@@ -314,16 +454,26 @@
       }
       verifiedTeamCode = code;
       setConnection(`✓ ${data.team} 연결됨`, "connected");
+      chatStatus.textContent = "연결되었습니다. 질문을 보내 주세요.";
+      return true;
     } catch (error) {
-      setConnection("연결되지 않았습니다 · 설정을 확인해 주세요", "error");
+      // 설정창이 닫혀 있어도 실패 이유를 입력칸 옆에서 볼 수 있습니다.
+      setConnection(error.message, "error");
       showSettingsError(error.message);
+      chatStatus.textContent = error.message;
+      chatStatus.classList.add("is-error");
+      return false;
     } finally {
       setBusy("");
     }
   }
 
   async function sendMessage() {
-    if (busy) return;
+    if (busy) {
+      chatStatus.textContent = busy === "verify" ? "팀 연결을 확인하고 있습니다. 잠시만 기다려 주세요." : "제이가 답변을 작성하고 있습니다.";
+      return;
+    }
+    chatStatus.classList.remove("is-error");
     chatStatus.textContent = "";
     const question = messageInput.value.trim();
     if (!question) {
@@ -331,19 +481,22 @@
       messageInput.focus();
       return;
     }
-    if (!savedTeamCode || verifiedTeamCode !== savedTeamCode || teamInput.value.trim() !== savedTeamCode) {
+    if (!savedTeamCode || teamInput.value.trim() !== savedTeamCode) {
       showSettingsError("먼저 팀 코드를 저장하세요");
+      chatStatus.textContent = "먼저 설정에서 팀 코드를 저장해 주세요.";
       openSettings();
       teamInput.focus();
       return;
     }
-    setBusy("send");
-    state.pending = true;
-    state.draft = "";
-    messageInput.value = "";
-    addMessage("user", question);
-    saveConversation();
+    // 처음의 자동 확인이 끊겼다면, 보내기를 눌렀을 때 연결을 다시 확인합니다.
+    if (verifiedTeamCode !== savedTeamCode && !await verifyTeam(false)) return;
     try {
+      setBusy("send");
+      state.pending = true;
+      state.draft = "";
+      messageInput.value = "";
+      addMessage("user", question);
+      saveConversation();
       const data = await requestJSON(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -353,14 +506,16 @@
       addMessage("assistant", data.text);
       chatStatus.textContent = "제이의 답변이 도착했습니다.";
     } catch (error) {
-      addMessage("error", error.message);
       state.draft = question;
       messageInput.value = question;
       chatStatus.textContent = "질문을 입력칸에 남겨 두었습니다. 확인 후 다시 보내실 수 있습니다.";
+      try { addMessage("error", error.message); }
+      catch { chatStatus.textContent = "대화를 화면에 표시하지 못했습니다. 질문은 입력칸에 남겨 두었습니다. 다시 열어 주세요."; }
     } finally {
       state.pending = false;
-      saveConversation();
+      // 저장이나 표시에서 문제가 생겨도 보내기 버튼은 반드시 다시 풀어 줍니다.
       setBusy("");
+      saveConversation();
       scrollToLatest();
       if (!settingsDialog.open) messageInput.focus();
     }
@@ -373,6 +528,12 @@
     verifiedTeamCode = "";
     clearSettingsError();
     setConnection("팀 코드를 저장 · 확인해 주세요");
+  });
+
+  faceForm.addEventListener("submit", (event) => { event.preventDefault(); createFace(); });
+  facePrompt.addEventListener("input", () => {
+    const saved = saveValue(FACE_PROMPT_KEY, facePrompt.value, "캐릭터 설명을 저장하지 못했습니다. 창을 닫기 전에 내용을 따로 복사해 주세요.");
+    showFaceStatus(saved ? "캐릭터 설명을 저장했습니다. 얼굴 만들기를 눌러 주세요." : "캐릭터 설명을 저장하지 못했습니다.", !saved);
   });
 
   faqInput.addEventListener("input", () => {
@@ -432,6 +593,7 @@
 
   teamInput.value = savedTeamCode;
   faqInput.value = faq;
+  facePrompt.value = savedFacePrompt === null ? DEFAULT_FACE_PROMPT : savedFacePrompt.slice(0, 1500);
   messageInput.value = state.draft;
   if (state.pending) {
     // 새로 고침 중에 끊긴 답변을 계속 기다리는 것처럼 보이지 않게 안내합니다.
@@ -445,8 +607,379 @@
     saveConversation();
   }
   renderMessages();
+  refreshProfiles();
   setBusy("");
+  chatStatus.textContent = "";
   setConnection("연결 전 · 설정에서 팀 코드를 저장해 주세요");
+  document.documentElement.setAttribute("data-bot-ready", "true");
   if (savedTeamCode) verifyTeam(false);
   window.addEventListener("pagehide", saveConversation);
+})();
+
+// 음성 기능은 상담 기능과 따로 시작합니다. 지원하지 않아도 글로 보내기는 그대로 됩니다.
+(() => {
+  try {
+    const micButton = document.querySelector("#mic-button");
+    const speakButton = document.querySelector("#speak-button");
+    const voiceStatus = document.querySelector("#voice-status");
+    const input = document.querySelector("#message-input");
+    const form = document.querySelector("#chat-form");
+    const sendButton = document.querySelector("#send-button");
+    if (!micButton || !speakButton || !voiceStatus || !input || !form || !sendButton) return;
+
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const synthesis = window.speechSynthesis;
+    const Utterance = window.SpeechSynthesisUtterance;
+    const canListen = typeof Recognition === "function";
+    const canSpeak = Boolean(synthesis && typeof synthesis.speak === "function" && typeof Utterance === "function");
+    let listening = null;
+    let reading = null;
+    let listenNumber = 0;
+    let readNumber = 0;
+    let voiceIsWriting = false;
+    let knownVoices = [];
+
+    function tell(message) { voiceStatus.textContent = message; }
+
+    function micAppearance(active, finishing = false) {
+      micButton.textContent = active ? (finishing ? "마치는 중…" : "■ 말하기 끝내기") : "🎙️ 말로 입력";
+      micButton.setAttribute("aria-pressed", String(active));
+      micButton.disabled = !canListen;
+    }
+
+    function readingAppearance(active) {
+      speakButton.textContent = active ? "■ 듣기 멈추기" : "🔊 답변 듣기";
+      speakButton.setAttribute("aria-pressed", String(active));
+      speakButton.disabled = !canSpeak;
+    }
+
+    function clearListeningTimers(session) {
+      clearTimeout(session.limitTimer);
+      clearTimeout(session.stopTimer);
+    }
+
+    function isListening(session) {
+      return listening === session && session.number === listenNumber;
+    }
+
+    // 전송 뒤에 늦게 도착한 음성 결과가 새 입력칸을 바꾸지 않도록 먼저 연결을 끊습니다.
+    function cancelListening(message = "") {
+      const session = listening;
+      listening = null;
+      listenNumber += 1;
+      if (session) {
+        clearListeningTimers(session);
+        try { session.recognition.abort(); } catch { /* 이미 끝난 인식은 그대로 둡니다. */ }
+      }
+      micAppearance(false);
+      if (message) tell(message);
+    }
+
+    function finishListening(session, message) {
+      if (!isListening(session)) return;
+      listening = null;
+      listenNumber += 1;
+      clearListeningTimers(session);
+      micAppearance(false);
+      if (message) tell(message);
+    }
+
+    function listeningError(code) {
+      const messages = {
+        "not-allowed": "마이크 사용이 허용되지 않았습니다. 브라우저의 마이크 권한을 확인하거나 글자로 입력해 주세요.",
+        "service-not-allowed": "이 브라우저에서 음성 입력을 사용할 수 없습니다. 마이크 권한을 확인하거나 글자로 입력해 주세요.",
+        "audio-capture": "사용할 마이크를 찾지 못했습니다. 마이크 연결을 확인해 주세요.",
+        "network": "음성 인식에 연결하지 못했습니다. 인터넷 연결을 확인하거나 글자로 입력해 주세요.",
+        "no-speech": "말소리를 듣지 못했습니다. 마이크를 다시 누르고 말씀해 주세요.",
+        "language-not-supported": "이 브라우저는 한국어 음성 입력을 지원하지 않습니다. 글자로 입력해 주세요.",
+        "aborted": "음성 입력을 중단했습니다. 필요한 내용은 글자로 이어서 입력하실 수 있습니다."
+      };
+      return messages[code] || "음성 입력을 시작하지 못했습니다. 마이크와 브라우저 설정을 확인하거나 글자로 입력해 주세요.";
+    }
+
+    function applyRecognizedText(session, transcript) {
+      if (!isListening(session) || input.readOnly || input.disabled) return;
+      const maximum = input.maxLength > 0 ? input.maxLength : 3000;
+      const space = session.original && !/\s$/.test(session.original) ? " " : "";
+      const combined = session.original + space + transcript;
+      voiceIsWriting = true;
+      try {
+        input.value = combined.slice(0, maximum);
+        // 기존 자동 저장 기능에 입력이 바뀌었다고 알려 줍니다.
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      } finally {
+        voiceIsWriting = false;
+      }
+      if (combined.length >= maximum) {
+        cancelListening("입력할 수 있는 길이에 도달했습니다. 입력된 내용을 확인하고 보내 주세요.");
+      }
+    }
+
+    function stopListeningNormally() {
+      const session = listening;
+      if (!session || session.stopping) return;
+      session.stopping = true;
+      micAppearance(true, true);
+      tell("말씀하신 내용을 마무리하고 있습니다…");
+      // 브라우저가 종료 알림을 보내지 않아도 버튼이 계속 잠기지 않게 합니다.
+      session.stopTimer = setTimeout(() => {
+        if (!isListening(session)) return;
+        cancelListening(session.hasFinal ? "말씀하신 내용을 입력했습니다. 확인한 뒤 보내 주세요." : "음성 입력을 마쳤습니다. 필요한 내용을 입력칸에서 확인해 주세요.");
+      }, 2500);
+      try { session.recognition.stop(); }
+      catch { cancelListening("음성 입력을 마쳤습니다. 입력된 내용을 확인해 주세요."); }
+    }
+
+    function startListening() {
+      if (!canListen) { tell("이 브라우저는 음성 입력을 지원하지 않습니다. 글자로 입력해 주세요."); return; }
+      if (listening) { stopListeningNormally(); return; }
+      if (input.readOnly || input.disabled || sendButton.disabled) {
+        tell("연결 확인이나 답변이 끝난 뒤 말로 입력해 주세요.");
+        return;
+      }
+      const maximum = input.maxLength > 0 ? input.maxLength : 3000;
+      if (input.value.length >= maximum) { tell("입력칸이 가득 찼습니다. 내용을 조금 줄인 뒤 말로 입력해 주세요."); return; }
+      cancelReading();
+      const session = { number: ++listenNumber, original: input.value, hasFinal: false, stopping: false, recognition: null, limitTimer: null, stopTimer: null };
+      try {
+        session.recognition = new Recognition();
+        listening = session;
+        const recognition = session.recognition;
+        recognition.lang = "ko-KR";
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          if (!isListening(session)) return;
+          tell("듣고 있습니다. 마이크를 향해 말씀해 주세요.");
+        };
+        recognition.onresult = (event) => {
+          if (!isListening(session)) return;
+          try {
+            const finalParts = [];
+            const interimParts = [];
+            for (let index = 0; index < event.results.length; index += 1) {
+              const result = event.results[index];
+              const text = result[0] && typeof result[0].transcript === "string" ? result[0].transcript.trim() : "";
+              if (text) (result.isFinal ? finalParts : interimParts).push(text);
+            }
+            if (finalParts.length) {
+              session.hasFinal = true;
+              applyRecognizedText(session, finalParts.join(" "));
+            }
+            if (!isListening(session)) return;
+            tell(interimParts.length ? `인식 중: ${interimParts.join(" ")}` : "말씀하신 내용을 입력했습니다. 계속 듣고 있습니다…");
+          } catch {
+            cancelListening("음성 내용을 읽지 못했습니다. 입력된 내용을 확인하고 다시 시도해 주세요.");
+          }
+        };
+        recognition.onerror = (event) => {
+          if (!isListening(session)) return;
+          cancelListening(listeningError(event.error));
+        };
+        recognition.onend = () => {
+          finishListening(session, session.hasFinal
+            ? "말씀하신 내용을 입력했습니다. 내용을 확인한 뒤 보내 주세요."
+            : "인식된 말이 없습니다. 마이크를 다시 누르거나 글자로 입력해 주세요.");
+        };
+        micAppearance(true);
+        tell("마이크를 연결하고 있습니다. 권한 안내가 나오면 마이크 사용을 허용해 주세요.");
+        session.limitTimer = setTimeout(() => {
+          if (isListening(session)) cancelListening("음성 입력을 마쳤습니다. 입력된 내용을 확인하거나 마이크를 다시 눌러 주세요.");
+        }, 60000);
+        recognition.start();
+      } catch {
+        cancelListening("마이크를 시작하지 못했습니다. 브라우저의 마이크 권한을 확인하거나 글자로 입력해 주세요.");
+      }
+    }
+
+    function clearReadingTimers(session) {
+      clearTimeout(session.voiceTimer);
+      clearTimeout(session.startTimer);
+      clearTimeout(session.limitTimer);
+      clearTimeout(session.nextTimer);
+    }
+
+    function isReading(session) {
+      return reading === session && session.number === readNumber;
+    }
+
+    function cancelReading(message = "") {
+      const session = reading;
+      reading = null;
+      readNumber += 1;
+      if (session) {
+        clearReadingTimers(session);
+        try { synthesis.cancel(); } catch { /* 이미 끝난 읽기는 그대로 둡니다. */ }
+        session.utterance = null;
+      }
+      readingAppearance(false);
+      if (message) tell(message);
+    }
+
+    function refreshVoices() {
+      if (!canSpeak) return;
+      try { knownVoices = synthesis.getVoices() || []; } catch { knownVoices = []; }
+    }
+
+    function koreanVoice() {
+      const korean = knownVoices.filter((voice) => /^ko(?:-|_)?/i.test(voice.lang || ""));
+      return korean.find((voice) => voice.default) || korean.find((voice) => voice.localService) || korean[0];
+    }
+
+    // 긴 답변은 짧게 나누어 차례로 읽어, 중간에 소리가 끊기는 일을 줄입니다.
+    function readingChunks(text) {
+      const chunks = [];
+      let remaining = text.trim();
+      while (remaining.length > 90) {
+        const section = remaining.slice(0, 90);
+        let cut = Math.max(section.lastIndexOf(". "), section.lastIndexOf("? "), section.lastIndexOf("! "), section.lastIndexOf("\n"));
+        if (cut >= 25) cut += 1;
+        else {
+          cut = section.lastIndexOf(" ");
+          if (cut < 35) cut = 90;
+        }
+        if (/[\uD800-\uDBFF]/.test(remaining[cut - 1])) cut -= 1;
+        chunks.push(remaining.slice(0, cut).trim());
+        remaining = remaining.slice(cut).trim();
+      }
+      if (remaining) chunks.push(remaining);
+      return chunks;
+    }
+
+    function speakChunk(session) {
+      if (!isReading(session)) return;
+      clearReadingTimers(session);
+      try {
+        const utterance = new Utterance(session.chunks[session.index]);
+        utterance.lang = "ko-KR";
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        const voice = koreanVoice();
+        if (voice) utterance.voice = voice;
+        // 읽는 동안 객체를 보관해 브라우저가 중간에 버리지 않게 합니다.
+        session.utterance = utterance;
+        utterance.onstart = () => {
+          if (!isReading(session)) return;
+          clearTimeout(session.startTimer);
+          tell("제이의 답변을 읽고 있습니다. 다시 누르면 멈춥니다.");
+        };
+        utterance.onend = () => {
+          if (!isReading(session)) return;
+          clearReadingTimers(session);
+          session.index += 1;
+          if (session.index < session.chunks.length) {
+            session.nextTimer = setTimeout(() => speakChunk(session), 0);
+          } else {
+            reading = null;
+            readNumber += 1;
+            session.utterance = null;
+            readingAppearance(false);
+            tell("답변 읽기를 마쳤습니다.");
+          }
+        };
+        utterance.onerror = (event) => {
+          if (!isReading(session)) return;
+          const message = event.error === "not-allowed"
+            ? "브라우저가 소리 재생을 허용하지 않았습니다. 소리 설정을 확인한 뒤 답변 듣기를 다시 눌러 주세요."
+            : "답변을 소리로 읽지 못했습니다. 소리 설정과 인터넷 연결을 확인하거나 화면의 답변을 읽어 주세요.";
+          cancelReading(message);
+        };
+        session.startTimer = setTimeout(() => {
+          if (isReading(session)) cancelReading("음성을 시작하지 못했습니다. 소리 설정을 확인한 뒤 답변 듣기를 다시 눌러 주세요.");
+        }, 10000);
+        session.limitTimer = setTimeout(() => {
+          if (isReading(session)) cancelReading("답변 읽기가 멈춰 종료했습니다. 답변 듣기를 다시 눌러 주세요.");
+        }, 45000);
+        if (synthesis.paused && typeof synthesis.resume === "function") synthesis.resume();
+        synthesis.speak(utterance);
+      } catch {
+        cancelReading("이 브라우저에서 답변을 읽지 못했습니다. 화면의 답변을 읽거나 복사해 주세요.");
+      }
+    }
+
+    function beginReading(session) {
+      if (!isReading(session) || session.started) return;
+      session.started = true;
+      clearTimeout(session.voiceTimer);
+      speakChunk(session);
+    }
+
+    function startReading() {
+      if (!canSpeak) { tell("이 브라우저는 답변 읽기를 지원하지 않습니다. 화면의 답변을 읽거나 복사해 주세요."); return; }
+      if (reading) { cancelReading("답변 읽기를 멈췄습니다."); return; }
+      cancelListening();
+      const answers = document.querySelectorAll("#messages .assistant .message-bubble");
+      const lastAnswer = answers.length ? answers[answers.length - 1] : document.querySelector(".greeting .message-bubble");
+      const text = lastAnswer ? lastAnswer.textContent.trim() : "";
+      if (!text) { tell("아직 읽을 답변이 없습니다. 먼저 질문을 보내 주세요."); return; }
+      const session = { number: ++readNumber, chunks: readingChunks(text), index: 0, started: false, utterance: null, voiceTimer: null, startTimer: null, limitTimer: null, nextTimer: null };
+      reading = session;
+      readingAppearance(true);
+      tell("답변을 읽을 준비를 하고 있습니다…");
+      refreshVoices();
+      if (knownVoices.length) beginReading(session);
+      else {
+        // 음성 목록이 조금 늦게 준비되는 브라우저도 기다렸다가 읽습니다.
+        session.voiceTimer = setTimeout(() => { refreshVoices(); beginReading(session); }, 1000);
+      }
+    }
+
+    micButton.addEventListener("click", startListening);
+    speakButton.addEventListener("click", startReading);
+    input.addEventListener("input", () => {
+      if (!voiceIsWriting && listening) cancelListening("직접 입력하신 내용을 사용합니다. 음성 입력을 마쳤습니다.");
+    });
+    // 빠른 질문과 설정이 입력 내용을 바꾸기 전에 늦은 인식 결과를 차단합니다.
+    document.querySelectorAll("[data-question]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (listening) cancelListening("빠른 질문을 사용하도록 음성 입력을 멈췄습니다.");
+      }, true);
+    });
+    const settingsButton = document.querySelector("#settings-button");
+    if (settingsButton) settingsButton.addEventListener("click", () => {
+      if (listening) cancelListening("설정을 확인하도록 음성 입력을 멈췄습니다.");
+    }, true);
+    const clearButton = document.querySelector("#clear-button");
+    if (clearButton) clearButton.addEventListener("click", () => {
+      const wasActive = Boolean(listening || reading);
+      cancelListening();
+      cancelReading();
+      if (wasActive) tell("대화를 정리하도록 음성 기능을 멈췄습니다.");
+    }, true);
+    // 상담 코드보다 먼저 음성을 멈춰, 보내기 직후 도착한 결과를 무시합니다.
+    form.addEventListener("submit", () => { if (listening) cancelListening("음성 입력을 마치고 질문을 보냅니다."); }, true);
+    input.addEventListener("keydown", (event) => {
+      if (listening && event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) cancelListening("음성 입력을 마치고 질문을 보냅니다.");
+    }, true);
+
+    function stopVoiceWhenLeaving() {
+      const wasActive = Boolean(listening || reading);
+      cancelListening();
+      cancelReading();
+      if (wasActive) tell("화면을 벗어나 음성 기능을 멈췄습니다. 다시 누르면 사용할 수 있습니다.");
+    }
+    document.addEventListener("visibilitychange", () => { if (document.hidden) stopVoiceWhenLeaving(); });
+    window.addEventListener("pagehide", stopVoiceWhenLeaving);
+    if (canSpeak && typeof synthesis.addEventListener === "function") {
+      synthesis.addEventListener("voiceschanged", () => {
+        refreshVoices();
+        if (reading && !reading.started && knownVoices.length) beginReading(reading);
+      });
+    }
+    refreshVoices();
+    micAppearance(false);
+    readingAppearance(false);
+    if (!canListen && !canSpeak) tell("이 브라우저는 음성 기능을 지원하지 않습니다. 글로 질문하고 답변을 확인하실 수 있습니다.");
+    else if (!canListen) tell("이 브라우저는 음성 입력을 지원하지 않습니다. 글로 입력하거나 답변 듣기를 사용해 주세요.");
+    else if (!canSpeak) tell("이 브라우저는 답변 읽기를 지원하지 않습니다. 음성 입력과 글로 질문하기는 사용하실 수 있습니다.");
+  } catch {
+    const voiceNotice = document.querySelector("#voice-status");
+    if (voiceNotice) voiceNotice.textContent = "음성 기능을 준비하지 못했습니다. 글로 질문하고 답변을 확인하실 수 있습니다.";
+    ["#mic-button", "#speak-button"].forEach((selector) => {
+      const button = document.querySelector(selector);
+      if (button) button.disabled = true;
+    });
+  }
 })();
