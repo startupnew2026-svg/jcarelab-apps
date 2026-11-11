@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1A4AAD">
+  <meta name="description" content="제이케어랩의 매일 점검·체크리스트. 오늘의 점검을 기록하고 날짜별로 확인하거나 인쇄하세요.">
+  <title>점검 · 체크리스트 · 제이케어랩</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="back-link" href="../">← 앱 목록</a>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>제이케어랩</span></div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div><p class="eyebrow"><span aria-hidden="true"></span>매일의 확인을 차곡차곡</p><h1 id="page-title">점검 · 체크리스트</h1><p class="intro-description">오늘의 점검을 기록해 주세요.<br>지난 기록도 날짜별로 다시 보실 수 있습니다.</p></div>
+        <div class="today-card"><span>오늘 날짜</span><strong id="today-label"></strong></div>
+      </section>
+
+      <noscript><p class="notice">점검과 자동 저장을 사용하시려면 브라우저 설정에서 자바스크립트(화면의 자동 기능)를 켜 주세요.</p></noscript>
+      <p id="storage-notice" class="notice" role="status" hidden></p>
+      <div class="workspace">
+        <div class="main-column">
+          <section class="date-card card" aria-label="날짜별 기록 선택">
+            <div class="date-control"><label for="record-date">점검 날짜</label><input id="record-date" type="date" aria-describedby="date-help"></div>
+            <button id="go-today" class="button button-outline" type="button">오늘로 이동</button>
+            <p id="date-help">날짜를 고르면 그날의 기록을 보여 드립니다.</p>
+            <p id="date-error" class="error-message" role="alert" hidden></p>
+          </section>
+
+          <section class="checklist-card card" aria-labelledby="list-title">
+            <div class="section-heading"><h2 id="list-title">오늘의 점검</h2><span id="mode-label" class="mode-label">오늘 작성</span></div>
+            <p id="past-notice" class="past-notice" hidden>지난 기록을 보고 있습니다. 항목 수정과 체크는 오늘 점검에서 해 주세요.</p>
+
+            <div class="search-field">
+              <label for="search-input">항목 검색</label>
+              <div class="search-row"><input id="search-input" type="search" maxlength="160" placeholder="점검 항목을 찾아보세요" autocomplete="off"><button id="clear-search" class="button button-outline" type="button" hidden>검색 지우기</button></div>
+              <p id="search-summary" class="search-summary" role="status"></p>
+            </div>
+
+            <div id="item-list" class="item-list"></div>
+            <div id="empty-message" class="empty-message"><p id="empty-title">아직 점검 항목이 없습니다.</p><p id="empty-help">아래에서 항목을 추가하거나 예시를 넣어 주세요.</p></div>
+
+            <div id="edit-tools" class="edit-tools">
+              <button id="example-button" class="example-button" type="button"><span aria-hidden="true">＋</span> 예시 5줄 넣기</button>
+              <form id="add-form" class="add-form">
+                <label for="new-item">새 점검 항목</label>
+                <div class="add-row"><input id="new-item" type="text" maxlength="160" placeholder="예: 제품 소개 자료 확인" autocomplete="off"><button class="button button-primary" type="submit">항목 추가</button></div>
+                <p>추가한 항목은 다음 날에도 같은 목록으로 이어집니다.</p>
+              </form>
+              <p id="item-error" class="error-message" role="alert" hidden></p>
+            </div>
+            <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+
+        <aside class="sidebar" aria-label="점검 현황과 기록 관리">
+          <section class="summary-card" aria-labelledby="summary-title">
+            <h2 id="summary-title">점검 현황</h2><p id="summary-date" class="summary-date"></p>
+            <p class="summary-count"><strong id="done-count">0</strong><span> / <span id="total-count">0</span>개 완료</span></p>
+            <progress id="progress" value="0" max="100" aria-label="점검 완료율"></progress>
+            <p id="progress-description">확인하신 항목에 표시해 주세요.</p>
+          </section>
+
+          <section class="export-card card" aria-label="인쇄와 표 파일 저장">
+            <button id="print-button" class="button button-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6zM17 12h2"/></svg>인쇄</button>
+            <p>검색과 관계없이 선택한 날짜의 전체 항목을 인쇄합니다.</p>
+            <button id="export-button" class="button button-outline" type="button">표 파일 내보내기</button>
+            <p>모든 날짜의 기록을 CSV(엑셀에서 여는 표 파일)로 저장합니다.</p>
+          </section>
+
+          <section class="history-card card" aria-labelledby="history-title"><h2 id="history-title">날짜별 기록</h2><p id="history-empty">항목을 추가하면 날짜별 기록이 여기에 남습니다.</p><div id="date-list" class="date-list"></div></section>
+
+          <section class="save-card" aria-label="자동 저장 안내"><h2><span aria-hidden="true"></span>자동 저장</h2><p id="save-status" role="status">입력하면 이 브라우저에 저장됩니다.</p><p>같은 기기와 브라우저에서 이어서 사용하실 수 있습니다.</p></section>
+
+          <section class="clear-card card" aria-labelledby="clear-title"><h2 id="clear-title">기록 관리</h2><p>이 앱의 항목과 날짜별 기록을 모두 지웁니다.</p><button id="clear-button" class="button button-danger-outline" type="button">전체 지우기</button></section>
+        </aside>
+      </div>
+      <footer class="site-footer"><span aria-hidden="true"></span>교육과 연구, 현장과 함께하는 제이케어랩</footer>
+    </main>
+  </div>
+
+  <!-- 전체 지우기는 이 확인창에서 한 번 더 선택한 뒤에만 실행합니다. -->
+  <dialog id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description">
+    <h2 id="clear-dialog-title">모든 점검 기록을 지울까요?</h2>
+    <p id="clear-dialog-description">등록한 항목과 날짜별 기록이 모두 지워집니다. 지운 내용은 되돌릴 수 없습니다.</p>
+    <div class="dialog-actions"><button id="cancel-clear" class="button button-outline" type="button" autofocus>취소</button><button id="confirm-clear" class="button button-danger" type="button">모두 지우기</button></div>
+  </dialog>
+
+  <!-- 인쇄할 때는 입력 버튼 없이 선택한 날짜의 기록만 보여 줍니다. -->
+  <article id="print-area" class="print-area" aria-hidden="true">
+    <header class="paper-heading"><p>제이케어랩</p><h1>점검 · 체크리스트</h1><p id="print-date"></p></header>
+    <p id="print-summary" class="paper-summary"></p>
+    <table class="paper-table"><colgroup><col class="col-number"><col class="col-item"><col class="col-status"><col class="col-time"></colgroup><thead><tr><th scope="col">번호</th><th scope="col">점검 항목</th><th scope="col">상태</th><th scope="col">확인 시간</th></tr></thead><tbody id="print-items"></tbody></table>
+    <p id="print-updated" class="paper-updated"></p><footer class="paper-footer">제이케어랩 · 일일 점검 기록</footer>
+  </article>
+</body>
+</html>

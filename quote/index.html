@@ -95,6 +95,15 @@
             <label for="memo">메모 <span class="optional">(선택)</span></label>
             <textarea id="memo" data-field="memo" rows="2" maxlength="200" placeholder="추가로 전하실 내용을 적어 주세요."></textarea>
           </div>
+
+          <!-- 인쇄한 뒤 도장을 찍거나 손으로 서명하는 빈 자리입니다. -->
+          <section class="signature-section" aria-labelledby="signature-title">
+            <div class="signature-description">
+              <h3 id="signature-title">도장 · 서명</h3>
+              <p>인쇄 후 도장을 찍거나 서명해 주세요.</p>
+            </div>
+            <div class="signature-box" role="group" aria-label="도장 또는 서명을 위한 빈 자리"><span>(인 또는 서명)</span></div>
+          </section>
         </form>
 
         <aside class="sidebar" aria-label="합계와 인쇄 안내">
@@ -161,6 +170,13 @@
       <div class="paper-total"><strong>최종 합계</strong><strong id="print-total"></strong></div>
       <p class="paper-tax-note">부가세는 전체 공급가액의 10%이며, 원 미만은 버립니다.</p>
       <section id="print-memo-section" class="paper-memo"><h2>메모</h2><p id="print-memo"></p></section>
+      <!-- 도장 자리도 서류 높이에 포함되어 A4 한 장에 함께 맞춰집니다. -->
+      <section class="paper-signature" aria-label="도장 또는 서명 자리">
+        <div class="paper-signature-block">
+          <h2>도장 · 서명</h2>
+          <div class="paper-signature-box"><span>(인 또는 서명)</span></div>
+        </div>
+      </section>
       <footer class="paper-footer">위와 같이 거래 내역을 확인합니다.</footer>
     </article>
   </div>
