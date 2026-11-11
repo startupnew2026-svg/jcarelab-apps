@@ -56,6 +56,8 @@
   let composing = false;
   let verifiedTeamCode = "";
   let drawingFace = false;
+  let voiceCaptureBusy = false;
+  let voiceController = null;
 
   function storageProblem(key, message) {
     if (message) storageProblems.set(key, message);
@@ -106,7 +108,7 @@
   }
 
   function updateFaceControls() {
-    faceButton.disabled = drawingFace || Boolean(busy);
+    faceButton.disabled = drawingFace || Boolean(busy) || voiceCaptureBusy;
     faceButton.textContent = drawingFace ? "그리는 중… (10~40초)" : "얼굴 만들기";
     facePrompt.readOnly = drawingFace;
     faceForm.setAttribute("aria-busy", String(drawingFace));
@@ -173,7 +175,7 @@
   }
 
   async function createFace() {
-    if (drawingFace || busy) return;
+    if (drawingFace || busy || voiceCaptureBusy) return;
     const description = facePrompt.value.trim();
     if (!description) {
       showFaceStatus("만들고 싶은 캐릭터의 모습을 적어 주세요.", true);
@@ -282,9 +284,9 @@
   function setBusy(kind) {
     busy = kind;
     updateFaceControls();
-    const locked = Boolean(kind);
+    const locked = Boolean(kind) || voiceCaptureBusy;
     sendButton.disabled = locked;
-    sendButton.textContent = kind === "send" ? "대기 중…" : (kind === "verify" ? "연결 확인 중…" : "보내기");
+    sendButton.textContent = kind === "send" ? "대기 중…" : (kind === "verify" ? "연결 확인 중…" : (voiceCaptureBusy ? "음성 입력 중…" : "보내기"));
     messageInput.readOnly = locked;
     teamInput.disabled = locked;
     verifyButton.disabled = locked;
@@ -298,6 +300,7 @@
     typingIndicator.hidden = kind !== "send";
     chatLog.setAttribute("aria-busy", String(kind === "send"));
     if (kind === "send") scrollToLatest();
+    if (voiceController) voiceController.refresh();
   }
 
   function readableTime(timestamp) {
@@ -390,12 +393,14 @@
         copyButton.setAttribute("aria-label", `${readableTime(message.createdAt)} 제이의 답변 복사`);
         copyButton.addEventListener("click", () => copyAnswer(message.content, copyButton));
         meta.append(copyButton);
+        if (voiceController) meta.append(voiceController.createReadButton(message.content));
       }
       content.append(name, bubble, meta);
       row.append(content);
       messagesElement.append(row);
     });
     scrollToLatest();
+    if (voiceController) voiceController.refresh();
   }
 
   function addMessage(kind, content, reviewed = false) {
@@ -508,6 +513,10 @@
   }
 
   async function sendMessage() {
+    if (voiceCaptureBusy) {
+      chatStatus.textContent = "음성 입력이 끝나면 받아쓴 질문을 자동으로 보냅니다.";
+      return;
+    }
     if (busy) {
       chatStatus.textContent = busy === "verify" ? "팀 연결을 확인하고 있습니다. 잠시만 기다려 주세요." : "제이가 답변을 작성하고 있습니다.";
       return;
@@ -529,6 +538,7 @@
     }
     // 처음의 자동 확인이 끊겼다면, 보내기를 눌렀을 때 연결을 다시 확인합니다.
     if (verifiedTeamCode !== savedTeamCode && !await verifyTeam(false)) return;
+    if (voiceController) voiceController.stopPlayback();
     const shouldReview = reviewEnabled;
     const referenceFaq = faq;
     const requestTeam = verifiedTeamCode;
@@ -567,6 +577,14 @@
       }
       addMessage("assistant", finalAnswer, shouldReview);
       chatStatus.textContent = shouldReview ? "검토를 마친 제이의 답변이 도착했습니다." : "제이의 답변이 도착했습니다.";
+      // 소리는 화면에 표시된 최종 답만 읽습니다. 읽기 실패가 상담을 방해하지 않게 합니다.
+      if (voiceController) {
+        Promise.resolve().then(() => voiceController.readAutomatically(finalAnswer)).catch(() => {
+          const notice = document.querySelector("#voice-status");
+          notice.textContent = "자동 읽기를 시작하지 못했습니다. 답변 옆 읽기 버튼을 눌러 주세요.";
+          notice.classList.add("is-error");
+        });
+      }
     } catch (error) {
       state.draft = question;
       messageInput.value = question;
@@ -585,10 +603,14 @@
     }
   }
 
-  settingsButton.addEventListener("click", openSettings);
+  settingsButton.addEventListener("click", () => {
+    if (voiceController) voiceController.cancelRecording();
+    openSettings();
+  });
   closeSettings.addEventListener("click", () => settingsDialog.close());
   teamForm.addEventListener("submit", (event) => { event.preventDefault(); verifyTeam(true); });
   teamInput.addEventListener("input", () => {
+    if (voiceController) voiceController.stopPlayback();
     verifiedTeamCode = "";
     clearSettingsError();
     setConnection("팀 코드를 저장 · 확인해 주세요");
@@ -651,6 +673,7 @@
   cancelClear.addEventListener("click", () => clearDialog.close());
   confirmClear.addEventListener("click", () => {
     if (busy) return;
+    if (voiceController) voiceController.stopPlayback();
     // 이 앱의 대화와 입력 초안만 지웁니다. 팀 코드와 FAQ는 유지합니다.
     state.messages = [];
     state.draft = "";
@@ -680,6 +703,41 @@
     state.messages.push({ kind: "error", content: "이전 답변을 받기 전에 창이 닫히거나 새로 고침되었습니다. 입력칸의 질문을 다시 보내 주세요.", createdAt: Date.now() });
     saveConversation();
   }
+  // 음성을 지원하지 않는 브라우저에서도 글로 상담하는 기능은 계속 쓸 수 있습니다.
+  try {
+    voiceController = createTalkingAssistant({
+      apiBase: API_BASE,
+      isChatBusy: () => Boolean(busy),
+      setCaptureBusy: (value) => { voiceCaptureBusy = value; setBusy(busy); },
+      readSetting: readSaved,
+      saveSetting: saveValue,
+      requireTeam: async () => {
+        if (!savedTeamCode || teamInput.value.trim() !== savedTeamCode) {
+          showSettingsError("먼저 팀 코드를 저장하세요");
+          openSettings();
+          teamInput.focus();
+          throw new Error("먼저 팀 코드를 저장하세요");
+        }
+        if (verifiedTeamCode !== savedTeamCode && !await verifyTeam(false)) throw new Error(settingsError.textContent || "팀 연결을 확인한 뒤 다시 눌러 주세요.");
+        return verifiedTeamCode;
+      },
+      getLatestAnswer: () => {
+        const answer = [...state.messages].reverse().find((message) => message.kind === "assistant");
+        return answer ? answer.content : document.querySelector(".greeting .message-bubble").textContent;
+      },
+      submitTranscript: async (text) => {
+        if (text.length > messageInput.maxLength) throw new Error("받아쓴 내용이 너무 깁니다. 짧게 나누어 다시 말씀해 주세요.");
+        messageInput.value = text;
+        state.draft = text;
+        saveConversation();
+        await sendMessage();
+      }
+    });
+  } catch {
+    const notice = document.querySelector("#voice-status");
+    notice.textContent = "음성 기능을 준비하지 못했습니다. 글로 질문하고 답변을 확인하실 수 있습니다.";
+    notice.classList.add("is-error");
+  }
   renderMessages();
   refreshProfiles();
   setBusy("");
@@ -690,370 +748,351 @@
   window.addEventListener("pagehide", saveConversation);
 })();
 
-// 음성 기능은 상담 기능과 따로 시작합니다. 지원하지 않아도 글로 보내기는 그대로 됩니다.
-(() => {
-  try {
-    const micButton = document.querySelector("#mic-button");
-    const speakButton = document.querySelector("#speak-button");
-    const voiceStatus = document.querySelector("#voice-status");
-    const input = document.querySelector("#message-input");
-    const form = document.querySelector("#chat-form");
-    const sendButton = document.querySelector("#send-button");
-    if (!micButton || !speakButton || !voiceStatus || !input || !form || !sendButton) return;
+// 마이크 녹음과 읽기는 상담과 분리합니다. 음성이 막혀도 글로 상담할 수 있습니다.
+function createTalkingAssistant(options) {
+  const mic = document.querySelector("#mic-button");
+  const latest = document.querySelector("#speak-button");
+  const status = document.querySelector("#voice-status");
+  const indicator = document.querySelector("#recording-indicator");
+  const seconds = document.querySelector("#recording-seconds");
+  const autoToggle = document.querySelector("#auto-read-toggle");
+  const voiceSelect = document.querySelector("#voice-select");
+  const settingsStatus = document.querySelector("#voice-settings-status");
+  if (![mic, latest, status, indicator, seconds, autoToggle, voiceSelect, settingsStatus].every(Boolean)) throw new Error("음성 화면을 준비하지 못했습니다.");
+  const VOICE_KEY = "jcarelab-bot-voice-v1";
+  const AUTO_KEY = "jcarelab-bot-auto-read-v1";
+  const voiceNames = { nova: "노바", shimmer: "시머", alloy: "알로이", echo: "에코", onyx: "오닉스", fable: "페이블" };
+  const storedVoice = options.readSetting(VOICE_KEY);
+  let voice = Object.hasOwn(voiceNames, storedVoice) ? storedVoice : "nova";
+  let automatic = options.readSetting(AUTO_KEY) === "true";
+  let capture = null;
+  let playback = null;
+  let destroyed = false;
+  const answerButtons = new Map();
+  const MIC_GUIDANCE = "마이크를 허용해 주세요. 더블클릭으로 연 페이지에서 막히면 공개 주소(https)에서 다시 시도해 주세요.";
 
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const synthesis = window.speechSynthesis;
-    const Utterance = window.SpeechSynthesisUtterance;
-    const canListen = typeof Recognition === "function";
-    const canSpeak = Boolean(synthesis && typeof synthesis.speak === "function" && typeof Utterance === "function");
-    let listening = null;
-    let reading = null;
-    let listenNumber = 0;
-    let readNumber = 0;
-    let voiceIsWriting = false;
-    let knownVoices = [];
+  function tell(message, error = false) {
+    status.textContent = message;
+    status.classList.toggle("is-error", error);
+  }
 
-    function tell(message) { voiceStatus.textContent = message; }
+  function paintReadButton(button, text, isLatest = false) {
+    const active = playback && playback.text === text;
+    button.disabled = Boolean(capture);
+    button.setAttribute("aria-pressed", String(Boolean(active)));
+    button.textContent = active
+      ? (playback.phase === "blocked" ? "🔊 다시 눌러 듣기" : playback.phase === "loading" ? "■ 준비 취소" : "■ 듣기 멈추기")
+      : (isLatest ? "🔊 최근 답변 듣기" : "🔊 읽어 주기");
+  }
 
-    function micAppearance(active, finishing = false) {
-      micButton.textContent = active ? (finishing ? "마치는 중…" : "■ 말하기 끝내기") : "🎙️ 말로 입력";
-      micButton.setAttribute("aria-pressed", String(active));
-      micButton.disabled = !canListen;
-    }
-
-    function readingAppearance(active) {
-      speakButton.textContent = active ? "■ 듣기 멈추기" : "🔊 답변 듣기";
-      speakButton.setAttribute("aria-pressed", String(active));
-      speakButton.disabled = !canSpeak;
-    }
-
-    function clearListeningTimers(session) {
-      clearTimeout(session.limitTimer);
-      clearTimeout(session.stopTimer);
-    }
-
-    function isListening(session) {
-      return listening === session && session.number === listenNumber;
-    }
-
-    // 전송 뒤에 늦게 도착한 음성 결과가 새 입력칸을 바꾸지 않도록 먼저 연결을 끊습니다.
-    function cancelListening(message = "") {
-      const session = listening;
-      listening = null;
-      listenNumber += 1;
-      if (session) {
-        clearListeningTimers(session);
-        try { session.recognition.abort(); } catch { /* 이미 끝난 인식은 그대로 둡니다. */ }
-      }
-      micAppearance(false);
-      if (message) tell(message);
-    }
-
-    function finishListening(session, message) {
-      if (!isListening(session)) return;
-      listening = null;
-      listenNumber += 1;
-      clearListeningTimers(session);
-      micAppearance(false);
-      if (message) tell(message);
-    }
-
-    function listeningError(code) {
-      const messages = {
-        "not-allowed": "마이크 사용이 허용되지 않았습니다. 브라우저의 마이크 권한을 확인하거나 글자로 입력해 주세요.",
-        "service-not-allowed": "이 브라우저에서 음성 입력을 사용할 수 없습니다. 마이크 권한을 확인하거나 글자로 입력해 주세요.",
-        "audio-capture": "사용할 마이크를 찾지 못했습니다. 마이크 연결을 확인해 주세요.",
-        "network": "음성 인식에 연결하지 못했습니다. 인터넷 연결을 확인하거나 글자로 입력해 주세요.",
-        "no-speech": "말소리를 듣지 못했습니다. 마이크를 다시 누르고 말씀해 주세요.",
-        "language-not-supported": "이 브라우저는 한국어 음성 입력을 지원하지 않습니다. 글자로 입력해 주세요.",
-        "aborted": "음성 입력을 중단했습니다. 필요한 내용은 글자로 이어서 입력하실 수 있습니다."
-      };
-      return messages[code] || "음성 입력을 시작하지 못했습니다. 마이크와 브라우저 설정을 확인하거나 글자로 입력해 주세요.";
-    }
-
-    function applyRecognizedText(session, transcript) {
-      if (!isListening(session) || input.readOnly || input.disabled) return;
-      const maximum = input.maxLength > 0 ? input.maxLength : 3000;
-      const space = session.original && !/\s$/.test(session.original) ? " " : "";
-      const combined = session.original + space + transcript;
-      voiceIsWriting = true;
-      try {
-        input.value = combined.slice(0, maximum);
-        // 기존 자동 저장 기능에 입력이 바뀌었다고 알려 줍니다.
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      } finally {
-        voiceIsWriting = false;
-      }
-      if (combined.length >= maximum) {
-        cancelListening("입력할 수 있는 길이에 도달했습니다. 입력된 내용을 확인하고 보내 주세요.");
-      }
-    }
-
-    function stopListeningNormally() {
-      const session = listening;
-      if (!session || session.stopping) return;
-      session.stopping = true;
-      micAppearance(true, true);
-      tell("말씀하신 내용을 마무리하고 있습니다…");
-      // 브라우저가 종료 알림을 보내지 않아도 버튼이 계속 잠기지 않게 합니다.
-      session.stopTimer = setTimeout(() => {
-        if (!isListening(session)) return;
-        cancelListening(session.hasFinal ? "말씀하신 내용을 입력했습니다. 확인한 뒤 보내 주세요." : "음성 입력을 마쳤습니다. 필요한 내용을 입력칸에서 확인해 주세요.");
-      }, 2500);
-      try { session.recognition.stop(); }
-      catch { cancelListening("음성 입력을 마쳤습니다. 입력된 내용을 확인해 주세요."); }
-    }
-
-    function startListening() {
-      if (!canListen) { tell("이 브라우저는 음성 입력을 지원하지 않습니다. 글자로 입력해 주세요."); return; }
-      if (listening) { stopListeningNormally(); return; }
-      if (input.readOnly || input.disabled || sendButton.disabled) {
-        tell("연결 확인이나 답변이 끝난 뒤 말로 입력해 주세요.");
-        return;
-      }
-      const maximum = input.maxLength > 0 ? input.maxLength : 3000;
-      if (input.value.length >= maximum) { tell("입력칸이 가득 찼습니다. 내용을 조금 줄인 뒤 말로 입력해 주세요."); return; }
-      cancelReading();
-      const session = { number: ++listenNumber, original: input.value, hasFinal: false, stopping: false, recognition: null, limitTimer: null, stopTimer: null };
-      try {
-        session.recognition = new Recognition();
-        listening = session;
-        const recognition = session.recognition;
-        recognition.lang = "ko-KR";
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        recognition.onstart = () => {
-          if (!isListening(session)) return;
-          tell("듣고 있습니다. 마이크를 향해 말씀해 주세요.");
-        };
-        recognition.onresult = (event) => {
-          if (!isListening(session)) return;
-          try {
-            const finalParts = [];
-            const interimParts = [];
-            for (let index = 0; index < event.results.length; index += 1) {
-              const result = event.results[index];
-              const text = result[0] && typeof result[0].transcript === "string" ? result[0].transcript.trim() : "";
-              if (text) (result.isFinal ? finalParts : interimParts).push(text);
-            }
-            if (finalParts.length) {
-              session.hasFinal = true;
-              applyRecognizedText(session, finalParts.join(" "));
-            }
-            if (!isListening(session)) return;
-            tell(interimParts.length ? `인식 중: ${interimParts.join(" ")}` : "말씀하신 내용을 입력했습니다. 계속 듣고 있습니다…");
-          } catch {
-            cancelListening("음성 내용을 읽지 못했습니다. 입력된 내용을 확인하고 다시 시도해 주세요.");
-          }
-        };
-        recognition.onerror = (event) => {
-          if (!isListening(session)) return;
-          cancelListening(listeningError(event.error));
-        };
-        recognition.onend = () => {
-          finishListening(session, session.hasFinal
-            ? "말씀하신 내용을 입력했습니다. 내용을 확인한 뒤 보내 주세요."
-            : "인식된 말이 없습니다. 마이크를 다시 누르거나 글자로 입력해 주세요.");
-        };
-        micAppearance(true);
-        tell("마이크를 연결하고 있습니다. 권한 안내가 나오면 마이크 사용을 허용해 주세요.");
-        session.limitTimer = setTimeout(() => {
-          if (isListening(session)) cancelListening("음성 입력을 마쳤습니다. 입력된 내용을 확인하거나 마이크를 다시 눌러 주세요.");
-        }, 60000);
-        recognition.start();
-      } catch {
-        cancelListening("마이크를 시작하지 못했습니다. 브라우저의 마이크 권한을 확인하거나 글자로 입력해 주세요.");
-      }
-    }
-
-    function clearReadingTimers(session) {
-      clearTimeout(session.voiceTimer);
-      clearTimeout(session.startTimer);
-      clearTimeout(session.limitTimer);
-      clearTimeout(session.nextTimer);
-    }
-
-    function isReading(session) {
-      return reading === session && session.number === readNumber;
-    }
-
-    function cancelReading(message = "") {
-      const session = reading;
-      reading = null;
-      readNumber += 1;
-      if (session) {
-        clearReadingTimers(session);
-        try { synthesis.cancel(); } catch { /* 이미 끝난 읽기는 그대로 둡니다. */ }
-        session.utterance = null;
-      }
-      readingAppearance(false);
-      if (message) tell(message);
-    }
-
-    function refreshVoices() {
-      if (!canSpeak) return;
-      try { knownVoices = synthesis.getVoices() || []; } catch { knownVoices = []; }
-    }
-
-    function koreanVoice() {
-      const korean = knownVoices.filter((voice) => /^ko(?:-|_)?/i.test(voice.lang || ""));
-      return korean.find((voice) => voice.default) || korean.find((voice) => voice.localService) || korean[0];
-    }
-
-    // 긴 답변은 짧게 나누어 차례로 읽어, 중간에 소리가 끊기는 일을 줄입니다.
-    function readingChunks(text) {
-      const chunks = [];
-      let remaining = text.trim();
-      while (remaining.length > 90) {
-        const section = remaining.slice(0, 90);
-        let cut = Math.max(section.lastIndexOf(". "), section.lastIndexOf("? "), section.lastIndexOf("! "), section.lastIndexOf("\n"));
-        if (cut >= 25) cut += 1;
-        else {
-          cut = section.lastIndexOf(" ");
-          if (cut < 35) cut = 90;
-        }
-        if (/[\uD800-\uDBFF]/.test(remaining[cut - 1])) cut -= 1;
-        chunks.push(remaining.slice(0, cut).trim());
-        remaining = remaining.slice(cut).trim();
-      }
-      if (remaining) chunks.push(remaining);
-      return chunks;
-    }
-
-    function speakChunk(session) {
-      if (!isReading(session)) return;
-      clearReadingTimers(session);
-      try {
-        const utterance = new Utterance(session.chunks[session.index]);
-        utterance.lang = "ko-KR";
-        utterance.rate = 1;
-        utterance.pitch = 1;
-        utterance.volume = 1;
-        const voice = koreanVoice();
-        if (voice) utterance.voice = voice;
-        // 읽는 동안 객체를 보관해 브라우저가 중간에 버리지 않게 합니다.
-        session.utterance = utterance;
-        utterance.onstart = () => {
-          if (!isReading(session)) return;
-          clearTimeout(session.startTimer);
-          tell("제이의 답변을 읽고 있습니다. 다시 누르면 멈춥니다.");
-        };
-        utterance.onend = () => {
-          if (!isReading(session)) return;
-          clearReadingTimers(session);
-          session.index += 1;
-          if (session.index < session.chunks.length) {
-            session.nextTimer = setTimeout(() => speakChunk(session), 0);
-          } else {
-            reading = null;
-            readNumber += 1;
-            session.utterance = null;
-            readingAppearance(false);
-            tell("답변 읽기를 마쳤습니다.");
-          }
-        };
-        utterance.onerror = (event) => {
-          if (!isReading(session)) return;
-          const message = event.error === "not-allowed"
-            ? "브라우저가 소리 재생을 허용하지 않았습니다. 소리 설정을 확인한 뒤 답변 듣기를 다시 눌러 주세요."
-            : "답변을 소리로 읽지 못했습니다. 소리 설정과 인터넷 연결을 확인하거나 화면의 답변을 읽어 주세요.";
-          cancelReading(message);
-        };
-        session.startTimer = setTimeout(() => {
-          if (isReading(session)) cancelReading("음성을 시작하지 못했습니다. 소리 설정을 확인한 뒤 답변 듣기를 다시 눌러 주세요.");
-        }, 10000);
-        session.limitTimer = setTimeout(() => {
-          if (isReading(session)) cancelReading("답변 읽기가 멈춰 종료했습니다. 답변 듣기를 다시 눌러 주세요.");
-        }, 45000);
-        if (synthesis.paused && typeof synthesis.resume === "function") synthesis.resume();
-        synthesis.speak(utterance);
-      } catch {
-        cancelReading("이 브라우저에서 답변을 읽지 못했습니다. 화면의 답변을 읽거나 복사해 주세요.");
-      }
-    }
-
-    function beginReading(session) {
-      if (!isReading(session) || session.started) return;
-      session.started = true;
-      clearTimeout(session.voiceTimer);
-      speakChunk(session);
-    }
-
-    function startReading() {
-      if (!canSpeak) { tell("이 브라우저는 답변 읽기를 지원하지 않습니다. 화면의 답변을 읽거나 복사해 주세요."); return; }
-      if (reading) { cancelReading("답변 읽기를 멈췄습니다."); return; }
-      cancelListening();
-      const answers = document.querySelectorAll("#messages .assistant .message-bubble");
-      const lastAnswer = answers.length ? answers[answers.length - 1] : document.querySelector(".greeting .message-bubble");
-      const text = lastAnswer ? lastAnswer.textContent.trim() : "";
-      if (!text) { tell("아직 읽을 답변이 없습니다. 먼저 질문을 보내 주세요."); return; }
-      const session = { number: ++readNumber, chunks: readingChunks(text), index: 0, started: false, utterance: null, voiceTimer: null, startTimer: null, limitTimer: null, nextTimer: null };
-      reading = session;
-      readingAppearance(true);
-      tell("답변을 읽을 준비를 하고 있습니다…");
-      refreshVoices();
-      if (knownVoices.length) beginReading(session);
-      else {
-        // 음성 목록이 조금 늦게 준비되는 브라우저도 기다렸다가 읽습니다.
-        session.voiceTimer = setTimeout(() => { refreshVoices(); beginReading(session); }, 1000);
-      }
-    }
-
-    micButton.addEventListener("click", startListening);
-    speakButton.addEventListener("click", startReading);
-    input.addEventListener("input", () => {
-      if (!voiceIsWriting && listening) cancelListening("직접 입력하신 내용을 사용합니다. 음성 입력을 마쳤습니다.");
-    });
-    // 빠른 질문과 설정이 입력 내용을 바꾸기 전에 늦은 인식 결과를 차단합니다.
-    document.querySelectorAll("[data-question]").forEach((button) => {
-      button.addEventListener("click", () => {
-        if (listening) cancelListening("빠른 질문을 사용하도록 음성 입력을 멈췄습니다.");
-      }, true);
-    });
-    const settingsButton = document.querySelector("#settings-button");
-    if (settingsButton) settingsButton.addEventListener("click", () => {
-      if (listening) cancelListening("설정을 확인하도록 음성 입력을 멈췄습니다.");
-    }, true);
-    const clearButton = document.querySelector("#clear-button");
-    if (clearButton) clearButton.addEventListener("click", () => {
-      const wasActive = Boolean(listening || reading);
-      cancelListening();
-      cancelReading();
-      if (wasActive) tell("대화를 정리하도록 음성 기능을 멈췄습니다.");
-    }, true);
-    // 상담 코드보다 먼저 음성을 멈춰, 보내기 직후 도착한 결과를 무시합니다.
-    form.addEventListener("submit", () => { if (listening) cancelListening("음성 입력을 마치고 질문을 보냅니다."); }, true);
-    input.addEventListener("keydown", (event) => {
-      if (listening && event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) cancelListening("음성 입력을 마치고 질문을 보냅니다.");
-    }, true);
-
-    function stopVoiceWhenLeaving() {
-      const wasActive = Boolean(listening || reading);
-      cancelListening();
-      cancelReading();
-      if (wasActive) tell("화면을 벗어나 음성 기능을 멈췄습니다. 다시 누르면 사용할 수 있습니다.");
-    }
-    document.addEventListener("visibilitychange", () => { if (document.hidden) stopVoiceWhenLeaving(); });
-    window.addEventListener("pagehide", stopVoiceWhenLeaving);
-    if (canSpeak && typeof synthesis.addEventListener === "function") {
-      synthesis.addEventListener("voiceschanged", () => {
-        refreshVoices();
-        if (reading && !reading.started && knownVoices.length) beginReading(reading);
-      });
-    }
-    refreshVoices();
-    micAppearance(false);
-    readingAppearance(false);
-    if (!canListen && !canSpeak) tell("이 브라우저는 음성 기능을 지원하지 않습니다. 글로 질문하고 답변을 확인하실 수 있습니다.");
-    else if (!canListen) tell("이 브라우저는 음성 입력을 지원하지 않습니다. 글로 입력하거나 답변 듣기를 사용해 주세요.");
-    else if (!canSpeak) tell("이 브라우저는 답변 읽기를 지원하지 않습니다. 음성 입력과 글로 질문하기는 사용하실 수 있습니다.");
-  } catch {
-    const voiceNotice = document.querySelector("#voice-status");
-    if (voiceNotice) voiceNotice.textContent = "음성 기능을 준비하지 못했습니다. 글로 질문하고 답변을 확인하실 수 있습니다.";
-    ["#mic-button", "#speak-button"].forEach((selector) => {
-      const button = document.querySelector(selector);
-      if (button) button.disabled = true;
+  function refresh() {
+    if (destroyed) return;
+    const phase = capture && capture.phase;
+    mic.disabled = !capture && options.isChatBusy();
+    mic.setAttribute("aria-pressed", String(Boolean(capture)));
+    mic.textContent = phase === "permission" ? "■ 마이크 연결 취소" : phase === "recording" ? "■ 녹음 끝내기" : phase === "stopping" ? "■ 녹음 취소" : phase === "transcribing" ? "■ 받아쓰기 취소" : "🎙️ 누르고 말하기";
+    indicator.hidden = phase !== "recording";
+    paintReadButton(latest, options.getLatestAnswer(), true);
+    answerButtons.forEach((text, button) => {
+      if (!button.isConnected) answerButtons.delete(button);
+      else paintReadButton(button, text);
     });
   }
-})();
+
+  function releaseTracks(session) {
+    if (!session.stream) return;
+    session.stream.getTracks().forEach((track) => { try { track.stop(); } catch { /* 이미 꺼진 마이크는 그대로 둡니다. */ } });
+    session.stream = null;
+  }
+
+  function clearCaptureTimers(session) {
+    clearTimeout(session.permissionTimer);
+    clearTimeout(session.limitTimer);
+    clearTimeout(session.stopTimer);
+    clearInterval(session.clockTimer);
+  }
+
+  function cancelRecording(message = "음성 입력을 취소했습니다.", error = false) {
+    const session = capture;
+    if (!session) return;
+    capture = null;
+    clearCaptureTimers(session);
+    if (session.controller) session.controller.abort();
+    if (session.recorder) {
+      session.recorder.ondataavailable = null;
+      session.recorder.onstop = null;
+      session.recorder.onerror = null;
+      try { if (session.recorder.state !== "inactive") session.recorder.stop(); } catch { /* 종료 중인 녹음은 다시 멈추지 않습니다. */ }
+    }
+    releaseTracks(session);
+    options.setCaptureBusy(false);
+    refresh();
+    if (message) tell(message, error);
+  }
+
+  // 요청은 일정 시간이 지나면 끝내고, 취소한 뒤 늦게 온 결과는 사용하지 않습니다.
+  async function request(session, route, init, readResponse, timeoutMessage) {
+    const controller = new AbortController();
+    session.controller = controller;
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 60000);
+    try {
+      let response;
+      try {
+        response = await fetch(options.apiBase + route, { ...init, signal: controller.signal, credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
+      } catch {
+        throw new Error(timedOut ? timeoutMessage : "음성 서비스에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.");
+      }
+      try { return await readResponse(response); }
+      catch (error) { if (timedOut) throw new Error(timeoutMessage); throw error; }
+    } finally {
+      clearTimeout(timer);
+      if (session.controller === controller) session.controller = null;
+    }
+  }
+
+  async function readJSON(response) {
+    let data;
+    try { data = await response.json(); } catch { throw new Error("음성 응답을 읽지 못했습니다. 다시 시도해 주세요."); }
+    if (data && typeof data.error === "string" && data.error) throw new Error(data.error);
+    if (!response.ok || !data || typeof data !== "object") throw new Error("음성 요청을 처리하지 못했습니다. 다시 시도해 주세요.");
+    return data;
+  }
+
+  async function transcribe(session) {
+    if (capture !== session) return;
+    clearCaptureTimers(session);
+    releaseTracks(session);
+    session.phase = "transcribing";
+    refresh();
+    tell("말씀하신 내용을 글로 옮기고 있습니다…");
+    let submitted = false;
+    try {
+      const audio = new Blob(session.chunks, { type: session.mime });
+      if (!audio.size) throw new Error("녹음된 소리가 없습니다. 마이크를 다시 누르고 말씀해 주세요.");
+      const body = new FormData();
+      body.append("team", session.team);
+      body.append("audio", audio, "voice.webm");
+      body.append("language", "ko");
+      // 녹음 파일의 경계 표시는 브라우저가 넣으므로 Content-Type을 직접 정하지 않습니다.
+      const data = await request(session, "/stt", { method: "POST", body }, readJSON, "받아쓰기가 오래 걸립니다. 잠시 후 다시 녹음해 주세요.");
+      if (capture !== session || destroyed) return;
+      if (typeof data.text !== "string" || !data.text.trim()) throw new Error("말씀하신 내용을 찾지 못했습니다. 다시 녹음해 주세요.");
+      capture = null;
+      submitted = true;
+      options.setCaptureBusy(false);
+      refresh();
+      tell("말씀하신 내용을 입력하고 질문을 보냅니다.");
+      // 직접 쓴 질문과 같은 보내기 기능을 사용해 방어 규칙과 검토를 그대로 거칩니다.
+      await options.submitTranscript(data.text.trim());
+    } catch (error) {
+      if (destroyed || (capture !== session && !submitted)) return;
+      if (capture === session) cancelRecording(error.message, true);
+      else tell(error.message, true);
+    }
+  }
+
+  function stopRecording() {
+    const session = capture;
+    if (!session) return;
+    if (session.phase !== "recording") { cancelRecording("음성 입력을 취소했습니다."); return; }
+    session.phase = "stopping";
+    clearTimeout(session.limitTimer);
+    clearInterval(session.clockTimer);
+    refresh();
+    tell("녹음을 마무리하고 있습니다…");
+    session.stopTimer = setTimeout(() => { if (capture === session) cancelRecording("녹음을 마치지 못했습니다. 다시 녹음해 주세요.", true); }, 5000);
+    try { session.recorder.stop(); }
+    catch { cancelRecording("녹음을 마치지 못했습니다. 다시 녹음해 주세요.", true); }
+    finally { releaseTracks(session); }
+  }
+
+  async function startRecording() {
+    if (destroyed) return;
+    if (capture) { stopRecording(); return; }
+    if (options.isChatBusy()) { tell("현재 답변이나 연결 확인이 끝난 뒤 말씀해 주세요."); return; }
+    const Recorder = window.MediaRecorder;
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function" || typeof Recorder !== "function") { tell(MIC_GUIDANCE, true); return; }
+    const mime = ["audio/webm;codecs=opus", "audio/webm"].find((type) => typeof Recorder.isTypeSupported === "function" && Recorder.isTypeSupported(type));
+    if (!mime) { tell("이 브라우저는 필요한 녹음 형식을 지원하지 않습니다. 크롬에서 다시 열어 주세요. " + MIC_GUIDANCE, true); return; }
+    stopPlayback();
+    const session = { phase: "permission", mime, team: "", stream: null, recorder: null, chunks: [], controller: null };
+    capture = session;
+    options.setCaptureBusy(true);
+    refresh();
+    tell("마이크를 연결하고 있습니다. 사용 허용 안내를 확인해 주세요.");
+    session.permissionTimer = setTimeout(() => { if (capture === session) cancelRecording(MIC_GUIDANCE, true); }, 30000);
+    try {
+      session.team = await options.requireTeam();
+      if (capture !== session || destroyed) return;
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch { throw new Error(MIC_GUIDANCE); }
+      if (capture !== session || destroyed) { stream.getTracks().forEach((track) => track.stop()); return; }
+      session.stream = stream;
+      clearTimeout(session.permissionTimer);
+      const recorder = new Recorder(stream, { mimeType: mime });
+      session.recorder = recorder;
+      recorder.ondataavailable = (event) => { if (capture === session && event.data && event.data.size) session.chunks.push(event.data); };
+      recorder.onstop = () => { if (capture === session) transcribe(session); };
+      recorder.onerror = () => { if (capture === session) cancelRecording("녹음 중 문제가 생겼습니다. " + MIC_GUIDANCE, true); };
+      recorder.start();
+      session.phase = "recording";
+      session.startedAt = Date.now();
+      seconds.textContent = "20";
+      refresh();
+      tell("듣고 있습니다. 다시 누르면 질문을 보냅니다. 20초가 지나면 자동으로 마칩니다.");
+      session.clockTimer = setInterval(() => {
+        if (capture !== session) return;
+        seconds.textContent = String(Math.max(0, 20 - Math.floor((Date.now() - session.startedAt) / 1000)));
+      }, 200);
+      session.limitTimer = setTimeout(() => { if (capture === session) { seconds.textContent = "0"; stopRecording(); } }, 20000);
+    } catch (error) {
+      if (capture === session) cancelRecording(error.message, true);
+    }
+  }
+
+  function clearPlaybackTimers(session) {
+    clearTimeout(session.startTimer);
+    clearTimeout(session.endTimer);
+  }
+
+  function stopPlayback(message = "", error = false) {
+    const session = playback;
+    playback = null;
+    if (session) {
+      clearPlaybackTimers(session);
+      if (session.controller) session.controller.abort();
+      if (session.audio) {
+        session.audio.onended = null;
+        session.audio.onerror = null;
+        session.audio.onplaying = null;
+        session.audio.pause();
+        session.audio.removeAttribute("src");
+      }
+      if (session.url) URL.revokeObjectURL(session.url);
+    }
+    refresh();
+    if (message) tell(message, error);
+  }
+
+  function playReady(session) {
+    if (playback !== session || destroyed) return;
+    clearPlaybackTimers(session);
+    session.phase = "playing";
+    refresh();
+    session.startTimer = setTimeout(() => { if (playback === session) stopPlayback("음성을 시작하지 못했습니다. 다시 읽어 주기를 눌러 주세요.", true); }, 10000);
+    function failedToPlay(error) {
+      if (playback !== session) return;
+      clearPlaybackTimers(session);
+      if (error && error.name === "NotAllowedError") {
+        session.phase = "blocked";
+        refresh();
+        tell("소리 재생이 보류되었습니다. 답변의 ‘다시 눌러 듣기’ 버튼을 눌러 주세요.");
+      } else stopPlayback("소리를 재생하지 못했습니다. 소리 설정을 확인한 뒤 다시 눌러 주세요.", true);
+    }
+    try {
+      // 준비된 음성은 다시 누르는 순간 바로 재생해 브라우저의 자동 재생 제한을 풀 수 있습니다.
+      const started = session.audio.play();
+      Promise.resolve(started).then(() => {
+        if (playback !== session) return;
+        clearTimeout(session.startTimer);
+        tell("답변을 읽고 있습니다. 다시 누르면 멈춥니다.");
+        session.endTimer = setTimeout(() => { if (playback === session) stopPlayback("답변 읽기를 마쳤습니다. 다시 누르면 처음부터 들으실 수 있습니다."); }, 180000);
+      }).catch(failedToPlay);
+    } catch (error) { failedToPlay(error); }
+  }
+
+  async function readText(text, fromAutomatic = false) {
+    if (destroyed || capture) return;
+    if (!text || !text.trim()) { tell("아직 읽을 답변이 없습니다. 먼저 질문을 보내 주세요."); return; }
+    if (!fromAutomatic && playback && playback.text === text && playback.voice === voice) {
+      if (playback.phase === "blocked") playReady(playback);
+      else stopPlayback("답변 읽기를 멈췄습니다.");
+      return;
+    }
+    stopPlayback();
+    const session = { text, voice, automatic: fromAutomatic, phase: "loading", audio: null, url: "", controller: null };
+    playback = session;
+    refresh();
+    tell("답변을 읽을 목소리를 준비하고 있습니다…");
+    try {
+      const team = await options.requireTeam();
+      if (playback !== session || destroyed) return;
+      const blob = await request(session, "/tts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team, text, voice: session.voice })
+      }, async (response) => {
+        const type = (response.headers.get("Content-Type") || "").toLowerCase();
+        if (type.includes("json")) { await readJSON(response); throw new Error("읽을 음성을 받지 못했습니다. 다시 눌러 주세요."); }
+        if (!response.ok) throw new Error("음성을 만들지 못했습니다. 잠시 후 다시 눌러 주세요.");
+        if (type && !type.startsWith("audio/") && !type.startsWith("application/octet-stream")) throw new Error("읽을 수 없는 음성 응답을 받았습니다. 다시 눌러 주세요.");
+        const result = await response.blob();
+        if (!result.size) throw new Error("받은 음성이 비어 있습니다. 다시 눌러 주세요.");
+        return result;
+      }, "목소리를 준비하는 시간이 길어졌습니다. 잠시 후 다시 눌러 주세요.");
+      if (playback !== session || destroyed) return;
+      session.url = URL.createObjectURL(blob);
+      session.audio = new Audio(session.url);
+      session.audio.onended = () => { if (playback === session) stopPlayback("답변 읽기를 마쳤습니다."); };
+      session.audio.onerror = () => { if (playback === session) stopPlayback("받은 소리를 재생하지 못했습니다. 다시 눌러 주세요.", true); };
+      session.audio.onplaying = () => { if (playback === session) { clearTimeout(session.startTimer); tell("답변을 읽고 있습니다. 다시 누르면 멈춥니다."); } };
+      playReady(session);
+    } catch (error) {
+      if (playback === session && !destroyed) stopPlayback(error.message, true);
+    }
+  }
+
+  function createReadButton(text) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "read-button";
+    button.setAttribute("aria-label", "제이의 답변 읽어 주기");
+    paintReadButton(button, text);
+    button.addEventListener("click", () => readText(text));
+    answerButtons.set(button, text);
+    return button;
+  }
+
+  function readAutomatically(text) { if (automatic && !document.hidden) readText(text, true); }
+  function latestClick() { readText(options.getLatestAnswer()); }
+  function describeSettings(saved = true) {
+    settingsStatus.textContent = `${voiceNames[voice]} 목소리 · 자동 읽기 ${automatic ? "켜짐" : "꺼짐"}.` + (saved ? " 선택은 자동 저장됩니다." : " 이번에는 적용되지만 다음을 위해 저장하지 못했습니다.");
+  }
+  function changeVoice() {
+    if (!Object.hasOwn(voiceNames, voiceSelect.value)) return;
+    voice = voiceSelect.value;
+    if (playback) stopPlayback("목소리를 바꿨습니다. 읽어 주기를 다시 눌러 주세요.");
+    describeSettings(options.saveSetting(VOICE_KEY, voice, "목소리 설정을 저장하지 못했습니다. 다시 열면 이전 목소리로 돌아갑니다."));
+  }
+  function changeAutomatic() {
+    automatic = autoToggle.checked;
+    if (!automatic && playback && playback.automatic) stopPlayback("자동 읽기를 끄고 답변 읽기를 멈췄습니다.");
+    describeSettings(options.saveSetting(AUTO_KEY, String(automatic), "자동 읽기 설정을 저장하지 못했습니다. 다시 열면 이전 설정으로 돌아갑니다."));
+  }
+  function leavePage() { cancelRecording(); stopPlayback(); }
+  function visibilityChanged() { if (document.hidden) leavePage(); }
+  function destroy() {
+    leavePage();
+    destroyed = true;
+    mic.removeEventListener("click", startRecording);
+    latest.removeEventListener("click", latestClick);
+    voiceSelect.removeEventListener("change", changeVoice);
+    autoToggle.removeEventListener("change", changeAutomatic);
+    document.removeEventListener("visibilitychange", visibilityChanged);
+    window.removeEventListener("pagehide", leavePage);
+    answerButtons.clear();
+  }
+
+  voiceSelect.value = voice;
+  autoToggle.checked = automatic;
+  describeSettings();
+  mic.addEventListener("click", startRecording);
+  latest.addEventListener("click", latestClick);
+  voiceSelect.addEventListener("change", changeVoice);
+  autoToggle.addEventListener("change", changeAutomatic);
+  document.addEventListener("visibilitychange", visibilityChanged);
+  window.addEventListener("pagehide", leavePage);
+  refresh();
+  return { createReadButton, refresh, readAutomatically, stopPlayback, cancelRecording, destroy };
+}

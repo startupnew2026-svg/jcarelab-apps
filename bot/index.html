@@ -65,8 +65,10 @@
               <label for="message-input">제이에게 물어보세요</label>
               <div class="compose-row"><textarea id="message-input" rows="2" maxlength="3000" placeholder="궁금한 내용을 입력해 주세요." aria-describedby="input-help"></textarea><button id="send-button" class="button button-primary" type="submit" disabled>준비 중…</button></div>
               <p id="input-help" class="input-help">엔터 키로 보내기 · 줄을 바꾸려면 시프트 키와 엔터 키를 함께 눌러 주세요.</p>
-              <div class="voice-tools" aria-label="음성 기능"><button id="mic-button" class="button button-outline" type="button" aria-pressed="false">🎙️ 말로 입력</button><button id="speak-button" class="button button-outline" type="button" aria-pressed="false">🔊 답변 듣기</button></div>
-              <p id="voice-status" class="voice-status" role="status" aria-live="polite">말로 입력한 내용은 확인 후 보내 주세요.</p>
+              <div class="voice-tools" aria-label="음성 기능"><button id="mic-button" class="button button-outline" type="button" aria-pressed="false">🎙️ 누르고 말하기</button><button id="speak-button" class="button button-outline" type="button" aria-pressed="false">🔊 최근 답변 듣기</button></div>
+              <!-- 녹음 중에는 빨간 점과 남은 시간을 함께 보여 줍니다. -->
+              <p id="recording-indicator" class="recording-indicator" role="status" aria-live="polite" hidden><span class="recording-dot" aria-hidden="true"></span><span>녹음 중 · 남은 <span id="recording-seconds">20</span>초</span></p>
+              <p id="voice-status" class="voice-status" role="status" aria-live="polite">마이크를 누르고 말씀하신 뒤 다시 누르면 질문을 보냅니다.</p>
             </form>
             <p id="chat-status" class="chat-status" role="status" aria-live="polite">상담 기능을 준비하고 있습니다…</p>
             <div class="chat-tools"><p id="draft-status">대화는 이 브라우저에 자동 저장됩니다.</p><button id="clear-button" class="clear-button" type="button" aria-haspopup="dialog">대화 지우기</button></div>
@@ -103,6 +105,22 @@
       <label class="review-switch" for="review-toggle"><input id="review-toggle" type="checkbox" role="switch" aria-describedby="review-help" checked><span>검토 AI 켜기</span></label>
       <p id="review-help">답변을 한 번 더 확인한 뒤 보여 드립니다. 끄면 첫 답변을 바로 보여 드립니다.</p>
       <p id="review-status" role="status" aria-live="polite">검토 AI가 켜져 있습니다.</p>
+    </section>
+    <!-- 자동 읽기와 목소리는 이 브라우저에 저장합니다. -->
+    <section class="settings-section voice-section" aria-labelledby="voice-title">
+      <h3 id="voice-title">말하는 상담원</h3>
+      <label class="review-switch" for="auto-read-toggle"><input id="auto-read-toggle" type="checkbox" role="switch" aria-describedby="auto-read-help"><span>자동 읽기 켜기</span></label>
+      <p id="auto-read-help">켜면 새 답변을 자동으로 읽어 드립니다. 각 답변의 읽기 버튼으로도 들으실 수 있습니다.</p>
+      <label for="voice-select">목소리 고르기</label>
+      <select id="voice-select" aria-describedby="voice-settings-status">
+        <option value="nova" selected>노바</option>
+        <option value="shimmer">시머</option>
+        <option value="alloy">알로이</option>
+        <option value="echo">에코</option>
+        <option value="onyx">오닉스</option>
+        <option value="fable">페이블</option>
+      </select>
+      <p id="voice-settings-status" role="status" aria-live="polite">자동 읽기가 꺼져 있습니다. 답변의 읽기 버튼을 눌러 들으실 수 있습니다.</p>
     </section>
     <!-- 그림이 없으면 이모지를 보여 주고, 만든 얼굴은 동그랗게 보여 줍니다. -->
     <section class="settings-section face-section" aria-labelledby="face-title">

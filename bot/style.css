@@ -3,13 +3,13 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: #f4f7fa; color: var(--ink); font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 18px; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
 h1, h2, h3, p { margin: 0; }
-button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button { min-height: 48px; cursor: pointer; }
 button:disabled { cursor: wait; opacity: .58; }
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
-input, textarea { min-width: 0; width: 100%; padding: 13px 14px; border: 1px solid #b9c8da; border-radius: 12px; background: white; font-size: 18px; line-height: 1.6; }
-input { min-height: 54px; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+input, textarea, select { min-width: 0; width: 100%; padding: 13px 14px; border: 1px solid #b9c8da; border-radius: 12px; background: white; font-size: 18px; line-height: 1.6; }
+input, select { min-height: 54px; }
 textarea { display: block; resize: vertical; }
 input::placeholder, textarea::placeholder { color: #667387; opacity: 1; }
 a { color: var(--blue); text-underline-offset: 5px; }
@@ -58,8 +58,9 @@ h1 > span { color: var(--blue); }
 .message-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 5px; color: var(--muted); }
 .user .message-meta { justify-content: flex-end; }
 .message-time { font-size: 18px; }
-.copy-button { min-height: 48px; padding: 6px 12px; border: 1px solid #cbd9e7; border-radius: 10px; background: #ffffffa8; color: #405b7e; font-size: 18px; }
-.copy-button:hover { background: white; }
+.copy-button, .read-button { min-height: 48px; padding: 6px 12px; border: 1px solid #cbd9e7; border-radius: 10px; background: #ffffffa8; color: #405b7e; font-size: 18px; }
+.copy-button:hover, .read-button:hover:not(:disabled) { background: white; }
+.read-button[aria-pressed="true"] { background: #e3f3ed; border-color: var(--mint); color: #245d4d; }
 .typing-bubble { display: flex; align-items: center; gap: 12px; color: var(--muted); }
 .typing-dots { display: inline-flex; align-items: center; gap: 4px; }
 /* 기다리는 동안 세 점이 차례로 올라갔다 내려오며 작성 중임을 알려 줍니다. */
@@ -83,12 +84,15 @@ h1 > span { color: var(--blue); }
 .input-help { margin-top: 10px; color: var(--muted); }
 .chat-status:not(:empty) { margin-top: 12px; color: var(--blue); }
 .chat-status.is-error { color: #a52938; }
-/* 음성 기능은 직접 누를 때만 시작하며, 좁은 화면에서도 줄을 바꿉니다. */
+/* 마이크와 읽기 버튼은 좁은 화면에서도 줄을 바꾸어 표시합니다. */
 .voice-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .voice-tools .button { flex: 1 1 150px; }
 .voice-tools [aria-pressed="true"] { background: #e3f3ed; border-color: #65c2b1; color: #245d4d; }
 .voice-status { margin-top: 10px; color: var(--muted); }
 .voice-status.is-error { color: #a52938; }
+.recording-indicator { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: #a52938; font-size: 18px; font-weight: 700; }
+.recording-dot { display: inline-block; width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; background: #c72b3d; }
+#recording-seconds { font-variant-numeric: tabular-nums; }
 .chat-tools { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8edf2; }
 #draft-status { flex: 1 1 220px; color: var(--muted); }
 .clear-button { padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #85505a; }
@@ -123,14 +127,14 @@ dialog::backdrop { background: #182d4c88; }
 .settings-section label { display: block; margin: 18px 0 8px; font-weight: 700; }
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .settings-section > .error-message, .error-message { color: #a52938; white-space: pre-wrap; overflow-wrap: anywhere; }
-.faq-section, .face-section, .review-section { padding-top: 24px; border-top: 1px solid var(--line); }
+.faq-section, .face-section, .review-section, .voice-section { padding-top: 24px; border-top: 1px solid var(--line); }
 /* 스위치의 설명까지 넓게 눌러 켜고 끌 수 있습니다. */
 .settings-section .review-switch { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px; border: 1px solid #c9dfd8; border-radius: 12px; background: #eff8f4; cursor: pointer; }
-#review-toggle { appearance: none; flex-shrink: 0; width: 52px; height: 30px; min-height: 30px; margin: 0; padding: 0; border: 1px solid #75869b; border-radius: 18px; background: #75869b; cursor: pointer; }
-#review-toggle::before { content: ""; display: block; width: 22px; height: 22px; margin: 3px; border-radius: 50%; background: white; }
-#review-toggle:checked { background: var(--blue); border-color: var(--blue); }
-#review-toggle:checked::before { transform: translateX(22px); }
-#review-toggle:disabled { opacity: .58; cursor: wait; }
+#review-toggle, #auto-read-toggle { appearance: none; flex-shrink: 0; width: 52px; height: 30px; min-height: 30px; margin: 0; padding: 0; border: 1px solid #75869b; border-radius: 18px; background: #75869b; cursor: pointer; }
+#review-toggle::before, #auto-read-toggle::before { content: ""; display: block; width: 22px; height: 22px; margin: 3px; border-radius: 50%; background: white; }
+#review-toggle:checked, #auto-read-toggle:checked { background: var(--blue); border-color: var(--blue); }
+#review-toggle:checked::before, #auto-read-toggle:checked::before { transform: translateX(22px); }
+#review-toggle:disabled, #auto-read-toggle:disabled { opacity: .58; cursor: wait; }
 .reviewed-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; padding: 1px 5px; border: 1px solid #c9dfd8; border-radius: 12px; background: #eff8f4; color: #2b6656; font-size: 18px; line-height: 1.6; }
 /* 그림은 동그란 자리 안에 맞추고, 작은 화면에서도 버튼 글자가 줄바꿈됩니다. */
 .face-preview { display: flex; align-items: center; justify-content: center; width: 96px; height: 96px; margin-top: 18px; border: 1px solid #c5e4d9; border-radius: 50%; background: #e5f5ee; font-size: 44px; }
