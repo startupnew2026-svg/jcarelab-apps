@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1A4AAD">
+  <meta name="description" content="제이케어랩 AI 상담원 제이에게 제품과 배송에 관한 궁금한 점을 편하게 물어보세요.">
+  <title>제이케어랩 AI 상담원 제이</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <!-- 파일을 더블클릭해도 읽을 수 있는 일반 스크립트입니다. -->
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="page-header">
+      <a class="brand" href="../index.html" aria-label="제이케어랩 앱 목록">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>제이케어랩
+      </a>
+      <a class="back-link" href="../index.html">← 앱 목록</a>
+    </header>
+
+    <main>
+      <section class="page-intro" aria-labelledby="page-title">
+        <p class="eyebrow"><span aria-hidden="true"></span>궁금한 점, 편하게 남겨 주세요</p>
+        <h1 id="page-title">제이케어랩 AI 상담원 <span>제이</span></h1>
+        <p>제품과 배송, 궁금하신 내용을 친절하게 안내해 드릴게요.</p>
+      </section>
+
+      <noscript><p class="storage-notice">상담을 사용하려면 브라우저 설정에서 자바스크립트(화면의 자동 기능)를 켜 주세요.</p></noscript>
+      <p id="storage-notice" class="storage-notice" role="status" hidden></p>
+
+      <div class="workspace">
+        <section class="chat-card" aria-label="제이와 상담하기">
+          <header class="chat-header">
+            <span class="agent-avatar" aria-hidden="true">🌿</span>
+            <div class="agent-heading"><h2>제이</h2><p>제이케어랩 AI 상담원</p></div>
+            <button id="settings-button" class="button settings-button" type="button" aria-haspopup="dialog"><span aria-hidden="true">⚙️</span> 설정</button>
+            <p id="connection-status" class="connection-status">연결 전 · 설정에서 팀 코드를 저장해 주세요</p>
+          </header>
+
+          <!-- 말풍선 안의 내용은 글자로만 넣어 안전하게 보여 줍니다. -->
+          <div id="chat-log" class="chat-log" role="log" aria-label="상담 대화" aria-live="polite" aria-relevant="additions text" tabindex="0">
+            <p class="conversation-start">제이와의 대화를 시작합니다</p>
+            <div class="message-row assistant greeting">
+              <span class="message-avatar" aria-hidden="true">🌿</span>
+              <div class="message-content"><p class="message-name">제이</p><div class="message-bubble">안녕하세요, 제이케어랩 AI 상담원 제이입니다. 제품과 배송에 대해 궁금한 점을 남겨 주세요. 확인된 내용을 바탕으로 안내해 드릴게요.</div></div>
+            </div>
+            <div id="messages"></div>
+            <div id="typing-indicator" class="message-row assistant" hidden>
+              <span class="message-avatar" aria-hidden="true">🌿</span>
+              <div class="message-content"><p class="message-name">제이</p><div class="message-bubble typing-bubble"><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>입력 중…</div></div>
+            </div>
+          </div>
+
+          <div class="composer">
+            <div class="quick-heading"><h3>빠른 질문</h3><span>질문을 골라 입력해 보세요</span></div>
+            <div class="quick-questions" aria-label="빠른 질문">
+              <button type="button" data-question="배송비는 얼마인가요?">배송비 안내</button>
+              <button type="button" data-question="언제 발송되나요?">발송 일정</button>
+              <button type="button" data-question="제품을 소개해 주세요.">제품 소개</button>
+              <button type="button" data-question="문의는 어떻게 하나요?">문의 방법</button>
+            </div>
+            <form id="chat-form" class="chat-form" autocomplete="off">
+              <label for="message-input">제이에게 물어보세요</label>
+              <div class="compose-row"><textarea id="message-input" rows="2" maxlength="3000" placeholder="궁금한 내용을 입력해 주세요." aria-describedby="input-help"></textarea><button id="send-button" class="button button-primary" type="submit">보내기 <span aria-hidden="true">↑</span></button></div>
+              <p id="input-help" class="input-help">엔터 키로 보내기 · 줄을 바꾸려면 시프트 키와 엔터 키를 함께 눌러 주세요.</p>
+            </form>
+            <p id="chat-status" class="chat-status" role="status" aria-live="polite"></p>
+            <div class="chat-tools"><p id="draft-status">대화는 이 브라우저에 자동 저장됩니다.</p><button id="clear-button" class="clear-button" type="button" aria-haspopup="dialog">대화 지우기</button></div>
+          </div>
+        </section>
+
+        <aside class="sidebar" aria-label="상담 안내">
+          <section class="welcome-card">
+            <span class="welcome-emoji" aria-hidden="true">🌿</span>
+            <p class="welcome-label">반갑습니다</p><h2>함께 살피는<br>상담원, 제이</h2>
+            <p>필요한 정보를 찾으실 수 있도록 차근차근 도와드리겠습니다.</p>
+            <div class="welcome-divider"></div>
+            <p>확인이 필요한 내용은<br>확인 후 안내드릴게요.</p>
+          </section>
+          <section class="guide-card"><h2>이렇게 시작해 보세요</h2><ol><li><span>1</span><p>설정에서 팀 코드를 저장해 주세요.</p></li><li><span>2</span><p>빠른 질문을 고르거나 궁금한 점을 적어 주세요.</p></li><li><span>3</span><p>답변 옆 ‘복사’로 안내 내용을 가져가세요.</p></li></ol></section>
+          <div class="save-note"><span aria-hidden="true">✓</span><p>같은 파일을 같은 브라우저에서 다시 열면 대화를 이어 가실 수 있습니다.</p></div>
+        </aside>
+      </div>
+      <footer class="page-footer"><span aria-hidden="true"></span>교육과 연구, 현장과 함께하는 제이케어랩</footer>
+    </main>
+  </div>
+
+  <!-- 설정창에서도 팀 코드와 질문·답변을 따로 관리합니다. -->
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-heading"><h2 id="settings-title">⚙️ 상담 설정</h2><button id="close-settings" class="button button-outline" type="button">닫기</button></div>
+    <section class="settings-section" aria-labelledby="team-title">
+      <h3 id="team-title">팀 연결</h3><p id="team-help">팀 코드는 이 브라우저에 저장되며, 연결 확인과 상담 요청에만 사용됩니다.</p>
+      <form id="team-form" autocomplete="off"><label for="team-code">팀 코드</label><div class="team-row"><input id="team-code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="팀 코드를 입력해 주세요" aria-describedby="team-help"><button id="verify-button" class="button button-primary" type="submit">저장 · 확인</button></div></form>
+      <p id="settings-connection-status" class="connection-status" role="status">연결 전 · 팀 코드를 저장해 주세요</p><p id="settings-error" class="error-message" role="alert" hidden></p>
+    </section>
+    <section class="settings-section faq-section" aria-labelledby="faq-title">
+      <h3 id="faq-title">자주 묻는 질문과 답변</h3><p id="faq-help">제이가 참고할 안내 내용을 적어 주세요. 확인된 가격·일정·연락처만 넣어 주세요.</p>
+      <label for="faq-input">상담에 사용할 안내 내용</label><textarea id="faq-input" rows="6" aria-describedby="faq-help" placeholder="확인된 질문과 답변을 적어 주세요."></textarea>
+      <p id="faq-status" class="faq-status" role="status">수정한 내용은 자동으로 저장됩니다.</p><button id="faq-reset-button" class="button button-outline" type="button">기본 안내로 되돌리기</button>
+    </section>
+  </dialog>
+
+  <dialog id="clear-dialog" class="clear-dialog" aria-labelledby="clear-title" aria-describedby="clear-description">
+    <h2 id="clear-title">대화를 지울까요?</h2><p id="clear-description">대화와 작성 중인 메시지를 지웁니다. 팀 코드와 상담 안내 내용은 그대로 남습니다.</p><div class="dialog-actions"><button id="cancel-clear" class="button button-outline" type="button" autofocus>취소</button><button id="confirm-clear" class="button button-danger" type="button">대화 지우기</button></div>
+  </dialog>
+</body>
+</html>
