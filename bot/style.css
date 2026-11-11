@@ -123,7 +123,15 @@ dialog::backdrop { background: #182d4c88; }
 .settings-section label { display: block; margin: 18px 0 8px; font-weight: 700; }
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .settings-section > .error-message, .error-message { color: #a52938; white-space: pre-wrap; overflow-wrap: anywhere; }
-.faq-section, .face-section { padding-top: 24px; border-top: 1px solid var(--line); }
+.faq-section, .face-section, .review-section { padding-top: 24px; border-top: 1px solid var(--line); }
+/* 스위치의 설명까지 넓게 눌러 켜고 끌 수 있습니다. */
+.settings-section .review-switch { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px; border: 1px solid #c9dfd8; border-radius: 12px; background: #eff8f4; cursor: pointer; }
+#review-toggle { appearance: none; flex-shrink: 0; width: 52px; height: 30px; min-height: 30px; margin: 0; padding: 0; border: 1px solid #75869b; border-radius: 18px; background: #75869b; cursor: pointer; }
+#review-toggle::before { content: ""; display: block; width: 22px; height: 22px; margin: 3px; border-radius: 50%; background: white; }
+#review-toggle:checked { background: var(--blue); border-color: var(--blue); }
+#review-toggle:checked::before { transform: translateX(22px); }
+#review-toggle:disabled { opacity: .58; cursor: wait; }
+.reviewed-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; padding: 1px 5px; border: 1px solid #c9dfd8; border-radius: 12px; background: #eff8f4; color: #2b6656; font-size: 18px; line-height: 1.6; }
 /* 그림은 동그란 자리 안에 맞추고, 작은 화면에서도 버튼 글자가 줄바꿈됩니다. */
 .face-preview { display: flex; align-items: center; justify-content: center; width: 96px; height: 96px; margin-top: 18px; border: 1px solid #c5e4d9; border-radius: 50%; background: #e5f5ee; font-size: 44px; }
 [data-profile-avatar].has-profile-image { overflow: hidden; border-radius: 50%; }

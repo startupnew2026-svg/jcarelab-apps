@@ -97,6 +97,13 @@
       <form id="team-form" autocomplete="off"><label for="team-code">팀 코드</label><div class="team-row"><input id="team-code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="팀 코드를 입력해 주세요" aria-describedby="team-help"><button id="verify-button" class="button button-primary" type="submit">저장 · 확인</button></div></form>
       <p id="settings-connection-status" class="connection-status" role="status">연결 전 · 팀 코드를 저장해 주세요</p><p id="settings-error" class="error-message" role="alert" hidden></p>
     </section>
+    <!-- 검토 스위치는 처음에 켜 두며, 설명을 눌러도 바꿀 수 있습니다. -->
+    <section class="settings-section review-section" aria-labelledby="review-title">
+      <h3 id="review-title">답변 검토</h3>
+      <label class="review-switch" for="review-toggle"><input id="review-toggle" type="checkbox" role="switch" aria-describedby="review-help" checked><span>검토 AI 켜기</span></label>
+      <p id="review-help">답변을 한 번 더 확인한 뒤 보여 드립니다. 끄면 첫 답변을 바로 보여 드립니다.</p>
+      <p id="review-status" role="status" aria-live="polite">검토 AI가 켜져 있습니다.</p>
+    </section>
     <!-- 그림이 없으면 이모지를 보여 주고, 만든 얼굴은 동그랗게 보여 줍니다. -->
     <section class="settings-section face-section" aria-labelledby="face-title">
       <h3 id="face-title">얼굴 만들기</h3>
